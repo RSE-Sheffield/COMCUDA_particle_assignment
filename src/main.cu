@@ -44,6 +44,7 @@ int main(int argc, char **argv)
     // Load input config
     InputFile user_config;
     {
+        // @todo
         //user_cimage.data = stbi_load(config.input_file, &user_cimage.width, &user_cimage.height, &user_cimage.channels, 0);
         //if (!user_cimage.data) {
         //    printf("Unable to load image '%s', please try a different file.\n", config.input_file);
@@ -76,6 +77,7 @@ int main(int argc, char **argv)
             particles[i].location[0] = normalised_float_dist(rng) * OUT_IMAGE_WIDTH;
             particles[i].location[1] = normalised_float_dist(rng) * OUT_IMAGE_HEIGHT;
             particles[i].location[2] = normalised_float_dist(rng);
+            // @todo
             // particles[i].direction[0]
             // particles[i].direction[1]
             // particles[i].speed
@@ -84,21 +86,25 @@ int main(int argc, char **argv)
         for (unsigned int i = 0; i < user_config.circle_count; ++i) {
             particles[i].type = Circle;
             particles[i].radius = circle_rad_dist(rng);
-            particles[i].opacity = circle_opacity_dist(rng);
+            float t_opacity = circle_opacity_dist(rng);
+            t_opacity = t_opacity < MIN_OPACITY ? MIN_OPACITY : t_opacity;
+            t_opacity = t_opacity > MAX_OPACITY ? MAX_OPACITY : t_opacity;
+            particles[i].color[3] = (unsigned char)(t_opacity / 1.0f);
         }
         // Squares
         for (unsigned int i = user_config.circle_count; i < particles_count; ++i) {
             particles[i].type = Square;
             particles[i].radius = square_rad_dist(rng);
-            particles[i].opacity = square_opacity_dist(rng);
+            float t_opacity = square_opacity_dist(rng);
+            t_opacity = t_opacity < MIN_OPACITY ? MIN_OPACITY : t_opacity;
+            t_opacity = t_opacity > MAX_OPACITY ? MAX_OPACITY : t_opacity;
+            particles[i].color[3] = (unsigned char)(t_opacity / 1.0f);
         }
-        // Clamp radius/opacity to bounds (use OpenMP in an attempt to trigger OpenMPs hidden init cost)
+        // Clamp radius to bounds (use OpenMP in an attempt to trigger OpenMPs hidden init cost)
 #pragma omp parallel for 
         for (unsigned int i = user_config.circle_count; i < particles_count; ++i) {
             particles[i].radius = particles[i].radius < MIN_RADIUS ? MIN_RADIUS : particles[i].radius;
             particles[i].radius = particles[i].radius > MAX_RADIUS ? MAX_RADIUS : particles[i].radius;
-            particles[i].opacity = particles[i].opacity < MIN_OPACITY ? MIN_OPACITY : particles[i].opacity;
-            particles[i].opacity = particles[i].opacity > MAX_OPACITY ? MAX_OPACITY : particles[i].opacity;
         }
     }
 

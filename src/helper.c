@@ -16,33 +16,7 @@
 /// Utility Methods
 ///
 
-/**
- * Returns x * a + y * (1.0 - a)
- * e.g. The linear blend of x and y using the floating-point value a.
- * The value for a is not restricted to the range [0, 1].
- */
-inline unsigned char mix_uc(unsigned char x, unsigned char y, float a) {
-    return (unsigned char)(x * a + y * (1.0f - a));
-}
-inline float mix_f(float x, float y, float a) {
-    return x * a + y * (1.0f - a);
-}
-/**
- * Returns the offset of the tile to be used for interpolation, based on the position of a pixel within the tile
- * This is specific to each axis
- * @param i Position of the pixel within the tile
- */
-inline int lerp_direction(unsigned int i) {
-    return i < HALF_TILE_SIZE ? -1 : 1;
-}
-/**
- * Returns the interpolation weight, based on the position of a pixel within the tile
- * This is specific to each axis
- * @param i Position of the pixel within the tile
- */
-inline float lerp_weight(unsigned int i) {
-    return  (i < HALF_TILE_SIZE ? HALF_TILE_SIZEf + i : 1.5f * TILE_SIZE - i) / TILE_SIZEf;
-}
+/*
 
 int skip_histogram_used = -1;
 void validate_histogram(const Image *input_image, Histogram_uint* test_histograms, int most_common_contrast) {
@@ -440,3 +414,4 @@ int getStage2SkipUsed() {
 int getStage3SkipUsed() {
     return skip_interpolate_used;
 }
+*/
