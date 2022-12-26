@@ -401,17 +401,18 @@ void skip_interpolate(const Image *input_image, Histogram_uchar* equalisied_hist
     }
     skip_interpolate_used++;
 }
+*/
 
+// @TODO
 int getSkipUsed() {
-    return skip_histogram_used + skip_limited_histogram_used + skip_cumulative_histogram_used + skip_equalised_histogram_used + skip_interpolate_used;
+    return 0; // skip_histogram_used + skip_limited_histogram_used + skip_cumulative_histogram_used + skip_equalised_histogram_used + skip_interpolate_used;
 }
 int getStage1SkipUsed() {
-    return skip_histogram_used;
+    return 0; //skip_histogram_used;
 }
 int getStage2SkipUsed() {
-    return skip_limited_histogram_used + skip_cumulative_histogram_used + skip_equalised_histogram_used;
+    return 0; //skip_limited_histogram_used + skip_cumulative_histogram_used + skip_equalised_histogram_used;
 }
 int getStage3SkipUsed() {
-    return skip_interpolate_used;
+    return 0; //skip_interpolate_used;
 }
-*/

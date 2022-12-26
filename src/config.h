@@ -21,13 +21,13 @@
 /**
  * Bounds for particle generation
  */
-#define MIN_RADIUS 1.0f
-#define MAX_RADIUS 100.0f
-#define MIN_OPACITY 0.1f
-#define MAX_OPACITY 1.0f
+#define MIN_RADIUS 10.0f
+#define MAX_RADIUS 512.0f
+#define MIN_OPACITY 0.2f
+#define MAX_OPACITY 0.8f
 
 // Dark2 palette from Colorbrewer
-const unsigned char base_color_palette[8][3] = {
+static const unsigned char base_color_palette[8][3] = {
     {29, 143, 100},
     {206, 74, 8},
     {97, 89, 164},

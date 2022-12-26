@@ -54,6 +54,17 @@ int main(int argc, char **argv)
         //    printf("2 channel images are not supported, please try a different file.\n");
         //    return EXIT_FAILURE;
         //}
+        // test cfg
+        user_config.circle_count = 0;
+        user_config.circle_opacity_average = 0.5;
+        user_config.circle_opacity_standarddev = 2.0f;
+        user_config.circle_rad_average = 10;
+        user_config.circle_rad_standarddev = 2.0f;
+        user_config.square_count = 100;
+        user_config.square_opacity_average = 0.5;
+        user_config.square_opacity_standarddev = 2.0f;
+        user_config.square_rad_average = 50;
+        user_config.square_rad_standarddev = 3.0f;
     }
 
     // Generate Initial Particles from user_config
@@ -64,9 +75,9 @@ int main(int argc, char **argv)
         std::mt19937 rng(12);
         std::uniform_real_distribution<float> normalised_float_dist(0, 1);
         std::normal_distribution<float> circle_rad_dist(user_config.circle_rad_average, user_config.circle_rad_standarddev);
-        std::normal_distribution<float> circle_opacity_dist(user_config.circle_rad_average, user_config.circle_rad_standarddev);
+        std::normal_distribution<float> circle_opacity_dist(user_config.circle_opacity_average, user_config.circle_opacity_standarddev);
         std::normal_distribution<float> square_rad_dist(user_config.square_rad_average, user_config.square_rad_standarddev);
-        std::normal_distribution<float> square_opacity_dist(user_config.square_rad_average, user_config.square_rad_standarddev);
+        std::normal_distribution<float> square_opacity_dist(user_config.square_opacity_average, user_config.square_opacity_standarddev);
         std::uniform_int_distribution<int> color_palette_dist(0, sizeof(base_color_palette)/sizeof(unsigned char[3]) - 1);
         // Common
         for (unsigned int i = user_config.circle_count; i < particles_count; ++i) {
@@ -78,9 +89,9 @@ int main(int argc, char **argv)
             particles[i].location[1] = normalised_float_dist(rng) * OUT_IMAGE_HEIGHT;
             particles[i].location[2] = normalised_float_dist(rng);
             // @todo
-            // particles[i].direction[0]
-            // particles[i].direction[1]
-            // particles[i].speed
+            particles[i].direction[0] = 0.0f;
+            particles[i].direction[1] = 1.0f;
+            particles[i].speed = 1.0f;
         }
         // Circles
         for (unsigned int i = 0; i < user_config.circle_count; ++i) {
@@ -89,7 +100,7 @@ int main(int argc, char **argv)
             float t_opacity = circle_opacity_dist(rng);
             t_opacity = t_opacity < MIN_OPACITY ? MIN_OPACITY : t_opacity;
             t_opacity = t_opacity > MAX_OPACITY ? MAX_OPACITY : t_opacity;
-            particles[i].color[3] = (unsigned char)(t_opacity / 1.0f);
+            particles[i].color[3] = (unsigned char)(255 * t_opacity);
         }
         // Squares
         for (unsigned int i = user_config.circle_count; i < particles_count; ++i) {
@@ -98,11 +109,11 @@ int main(int argc, char **argv)
             float t_opacity = square_opacity_dist(rng);
             t_opacity = t_opacity < MIN_OPACITY ? MIN_OPACITY : t_opacity;
             t_opacity = t_opacity > MAX_OPACITY ? MAX_OPACITY : t_opacity;
-            particles[i].color[3] = (unsigned char)(t_opacity / 1.0f);
+            particles[i].color[3] = (unsigned char)(255 * t_opacity);
         }
         // Clamp radius to bounds (use OpenMP in an attempt to trigger OpenMPs hidden init cost)
 #pragma omp parallel for 
-        for (unsigned int i = user_config.circle_count; i < particles_count; ++i) {
+        for (int i = 0; i < (int)particles_count; ++i) {
             particles[i].radius = particles[i].radius < MIN_RADIUS ? MIN_RADIUS : particles[i].radius;
             particles[i].radius = particles[i].radius > MAX_RADIUS ? MAX_RADIUS : particles[i].radius;
         }
@@ -133,9 +144,9 @@ int main(int argc, char **argv)
             if (TOTAL_RUNS > 1)
                 printf("\r%d/%d", runs + 1, TOTAL_RUNS);
             memset(&output_image, 0, sizeof(CImage));
-            output_image.data = (unsigned char*)malloc(OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * sizeof(unsigned char));
-            memset(output_image.data, 0, OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * sizeof(unsigned char));
-            // Run Adaptive Histogram algorithm
+            output_image.data = (unsigned char*)malloc(OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * 3 * sizeof(unsigned char));
+            memset(output_image.data, 0, OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * 3 * sizeof(unsigned char));
+            // Run Particles algorithm
             CUDA_CALL(cudaEventRecord(startT));
             CUDA_CALL(cudaEventSynchronize(startT));
             switch (config.mode) {
@@ -235,36 +246,36 @@ int main(int argc, char **argv)
     }
 
     // Validate and report    
-    {
-        printf("\rValidation Status: \n");
-        printf("\tImage width: %s" CONSOLE_RESET "\n", validation_image.width == output_image.width ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
-        printf("\tImage height: %s" CONSOLE_RESET "\n", validation_image.height == output_image.height ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
-        int v_size = validation_image.width * validation_image.height;
-        int o_size = output_image.width * output_image.height;
-        int s_size = v_size < o_size ? v_size : o_size;
-        int bad_pixels = 0;
-        int close_pixels = 0;
-        if (output_image.data && s_size) {
-            for (int i = 0; i < s_size; ++i) {
-                if (output_image.data[i] != validation_image.data[i]) {
-                    // Give a +-1 threshold for error (incase fast-math triggers a small difference in places)
-                    if (output_image.data[i]+1 == validation_image.data[i] || output_image.data[i]-1 == validation_image.data[i]) {
-                        close_pixels++;
-                    } else {
-                        bad_pixels++;
-                    }
-                }
-            }
-            printf("\tImage pixels: ");
-            if (bad_pixels) {
-                printf(CONSOLE_RED "Fail" CONSOLE_RESET " (%d/%u wrong)\n", bad_pixels, o_size);
-            } else {
-                printf(CONSOLE_GREEN "Pass" CONSOLE_RESET "\n");
-            }
-        } else {
-            printf("\tImage pixels: " CONSOLE_RED "Fail" CONSOLE_RESET "\n");
-        }
-    }
+    //{
+    //    printf("\rValidation Status: \n");
+    //    printf("\tImage width: %s" CONSOLE_RESET "\n", validation_image.width == output_image.width ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
+    //    printf("\tImage height: %s" CONSOLE_RESET "\n", validation_image.height == output_image.height ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
+    //    int v_size = validation_image.width * validation_image.height;
+    //    int o_size = output_image.width * output_image.height;
+    //    int s_size = v_size < o_size ? v_size : o_size;
+    //    int bad_pixels = 0;
+    //    int close_pixels = 0;
+    //    if (output_image.data && s_size) {
+    //        for (int i = 0; i < s_size; ++i) {
+    //            if (output_image.data[i] != validation_image.data[i]) {
+    //                // Give a +-1 threshold for error (incase fast-math triggers a small difference in places)
+    //                if (output_image.data[i]+1 == validation_image.data[i] || output_image.data[i]-1 == validation_image.data[i]) {
+    //                    close_pixels++;
+    //                } else {
+    //                    bad_pixels++;
+    //                }
+    //            }
+    //        }
+    //        printf("\tImage pixels: ");
+    //        if (bad_pixels) {
+    //            printf(CONSOLE_RED "Fail" CONSOLE_RESET " (%d/%u wrong)\n", bad_pixels, o_size);
+    //        } else {
+    //            printf(CONSOLE_GREEN "Pass" CONSOLE_RESET "\n");
+    //        }
+    //    } else {
+    //        printf("\tImage pixels: " CONSOLE_RED "Fail" CONSOLE_RESET "\n");
+    //    }
+    //}
 
     // Export output image
     if (config.output_file) {
@@ -297,7 +308,7 @@ int main(int argc, char **argv)
 
     // Cleanup
     cudaDeviceReset();
-    free(validation_image.data);
+    // free(validation_image.data);  //@TODO
     free(particles);
     free(output_image.data);
     free(config.input_file);
@@ -375,7 +386,7 @@ void parse_args(int argc, char **argv, Config *config) {
         free(t_arg);
 }
 void print_help(const char *program_name) {
-    fprintf(stderr, "%s <mode> <input image> (<output image>) (--bench)\n", program_name);
+    fprintf(stderr, "%s <mode> <input file> (<output image>) (--bench)\n", program_name);
     
     const char *line_fmt = "%-18s %s\n";
     fprintf(stderr, "Required Arguments:\n");

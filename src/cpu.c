@@ -16,7 +16,7 @@
  * @param count Number of items from the pointer to pair sort
  * @note This function is implemented at the bottom of cpu.c
  */
-void sort_pairs(float* keys_start, unsigned char* colours_start, int count);
+void sort_pairs(float* keys_start, unsigned char* colours_start, int last, int first);
 
 
 ///
@@ -137,8 +137,8 @@ void cpu_stage2() {
                     // Increment cpu_pixel_contribs, so next contributor stores to correct offset
                     const unsigned int storage_offset = cpu_pixel_index[pixel_offset] + (cpu_pixel_contribs[pixel_offset]++);
                     // Copy data to cpu_pixel_contrib buffers
-                    memcpy(cpu_pixel_contrib_colours + (4 * storage_offset), cpu_particles->color, 4 * sizeof(unsigned char));
-                    memcpy(cpu_pixel_contrib_depth + storage_offset, &cpu_particles->location[2], sizeof(float));
+                    memcpy(cpu_pixel_contrib_colours + (4 * storage_offset), cpu_particles[i].color, 4 * sizeof(unsigned char));
+                    memcpy(cpu_pixel_contrib_depth + storage_offset, &cpu_particles[i].location[2], sizeof(float));
                 }
             }
         } else if(cpu_particles[i].type == Circle) {
@@ -148,18 +148,18 @@ void cpu_stage2() {
 
     // Pair sort the colours contributing to each pixel based on ascending depth
     for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
-        int data_count = cpu_pixel_index[i + 1] - cpu_pixel_index[i];
         // Pair sort the colours which contribute to a single pigment
         sort_pairs(
             cpu_pixel_contrib_depth,
             cpu_pixel_contrib_colours,
-            data_count
+            cpu_pixel_index[i + 1] - 1,
+            cpu_pixel_index[i]
         );
     }
 }
 void cpu_stage3() {
-    // Memset output image data to 0 (black)
-    memset(cpu_output_image.data, 0, cpu_output_image.width * cpu_output_image.height * cpu_output_image.channels * sizeof(unsigned char));
+    // Memset output image data to 255 (white)
+    memset(cpu_output_image.data, 255, cpu_output_image.width * cpu_output_image.height * cpu_output_image.channels * sizeof(unsigned char));
 
     // Order dependent blending into output image
     for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
@@ -229,10 +229,7 @@ void sort_pairs(float* keys_start, unsigned char* colours_start, const int last,
         memcpy(colours_start + (4 * pivot), colours_start + (4 * j), 4 * sizeof(unsigned char));
         memcpy(colours_start + (4 * j), color_t, 4 * sizeof(unsigned char));
         // Recurse
-        sort_pairs(keys_start, colours_start, first, j - 1);
-        sort_pairs(keys_start, colours_start, j + 1, last);
+        sort_pairs(keys_start, colours_start, j - 1, first);
+        sort_pairs(keys_start, colours_start, last, j + 1);
     }
-}
-void sort_pairs(float* keys_start, unsigned char* colours_start, const int count) {
-    sort_pairs(keys_start, colours_start, count, 0);
 }
