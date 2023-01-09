@@ -64,35 +64,27 @@ void cpu_stage1() {
     memset(cpu_pixel_contribs, 0, OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * sizeof(unsigned int));
     // Update each particle & calculate how many particles contribute to each image
     for (unsigned int i = 0; i < cpu_particles_count; ++i) {
-        // Update position in the x & y axis (particle depth never changes)
-        cpu_particles[i].location[0] += cpu_particles[i].direction[0] * cpu_particles[i].speed;
-        cpu_particles[i].location[1] += cpu_particles[i].direction[1] * cpu_particles[i].speed;
-        // @TODO, wrap particles that exceed image bounds
-        // @TODO, update direction?
-        if (cpu_particles[i].type == Square) {
-            // Compute bounding box [inclusive-inclusive]
-            int x_min = (int)roundf(cpu_particles[i].location[0] - cpu_particles[i].radius);
-            int y_min = (int)roundf(cpu_particles[i].location[1] - cpu_particles[i].radius);
-            int x_max = (int)roundf(cpu_particles[i].location[0] + cpu_particles[i].radius);
-            int y_max = (int)roundf(cpu_particles[i].location[1] + cpu_particles[i].radius);
-            // Clamp bounding box to image bounds
-            x_min = x_min < 0 ? 0 : x_min;
-            y_min = y_min < 0 ? 0 : y_min;
-            x_max = x_max >= OUT_IMAGE_WIDTH ? OUT_IMAGE_WIDTH - 1 : x_max;
-            y_max = y_max >= OUT_IMAGE_HEIGHT ? OUT_IMAGE_HEIGHT - 1 : y_max;
-            // Notify every pixel within the bounding box
-            for (int x = x_min; x < x_max; ++x) {
-                for (int y = y_min; y < y_max; ++y) {
+        // Compute bounding box [inclusive-inclusive]
+        int x_min = (int)roundf(cpu_particles[i].location[0] - cpu_particles[i].radius);
+        int y_min = (int)roundf(cpu_particles[i].location[1] - cpu_particles[i].radius);
+        int x_max = (int)roundf(cpu_particles[i].location[0] + cpu_particles[i].radius);
+        int y_max = (int)roundf(cpu_particles[i].location[1] + cpu_particles[i].radius);
+        // Clamp bounding box to image bounds
+        x_min = x_min < 0 ? 0 : x_min;
+        y_min = y_min < 0 ? 0 : y_min;
+        x_max = x_max >= OUT_IMAGE_WIDTH ? OUT_IMAGE_WIDTH - 1 : x_max;
+        y_max = y_max >= OUT_IMAGE_HEIGHT ? OUT_IMAGE_HEIGHT - 1 : y_max;
+        // For each pixel in the bounding box, check that it falls within the radius
+        for (int x = x_min; x < x_max; ++x) {
+            for (int y = y_min; y < y_max; ++y) {
+                const float x_ab = (float)x + 0.5f - cpu_particles[i].location[0];
+                const float y_ab = (float)y + 0.5f - cpu_particles[i].location[1];
+                const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
+                if (pixel_distance <= cpu_particles[i].radius) {
                     const unsigned int pixel_offset = y * OUT_IMAGE_WIDTH + x;
                     ++cpu_pixel_contribs[pixel_offset];
                 }
             }
-        } else if(cpu_particles[i].type == Circle) {
-            //@TODO
-            // Compute bounding box
-
-            // Notify every pixel within the bounding box
-            
         }
     }
 }
@@ -118,20 +110,23 @@ void cpu_stage2() {
     // Store colours according to index
     // For each particle, store a copy of the colour/depth in cpu_pixel_contribs for each contributed pixel
     for (unsigned int i = 0; i < cpu_particles_count; ++i) {
-        if (cpu_particles[i].type == Square) {
-            // Compute bounding box [inclusive-inclusive]
-            int x_min = (int)roundf(cpu_particles[i].location[0] - cpu_particles[i].radius);
-            int y_min = (int)roundf(cpu_particles[i].location[1] - cpu_particles[i].radius);
-            int x_max = (int)roundf(cpu_particles[i].location[0] + cpu_particles[i].radius);
-            int y_max = (int)roundf(cpu_particles[i].location[1] + cpu_particles[i].radius);
-            // Clamp bounding box to image bounds
-            x_min = x_min < 0 ? 0 : x_min;
-            y_min = y_min < 0 ? 0 : y_min;
-            x_max = x_max >= OUT_IMAGE_WIDTH ? OUT_IMAGE_WIDTH - 1 : x_max;
-            y_max = y_max >= OUT_IMAGE_HEIGHT ? OUT_IMAGE_HEIGHT - 1 : y_max;
-            // Store data for every pixel within the bounding box
-            for (int x = x_min; x < x_max; ++x) {
-                for (int y = y_min; y < y_max; ++y) {
+        // Compute bounding box [inclusive-inclusive]
+        int x_min = (int)roundf(cpu_particles[i].location[0] - cpu_particles[i].radius);
+        int y_min = (int)roundf(cpu_particles[i].location[1] - cpu_particles[i].radius);
+        int x_max = (int)roundf(cpu_particles[i].location[0] + cpu_particles[i].radius);
+        int y_max = (int)roundf(cpu_particles[i].location[1] + cpu_particles[i].radius);
+        // Clamp bounding box to image bounds
+        x_min = x_min < 0 ? 0 : x_min;
+        y_min = y_min < 0 ? 0 : y_min;
+        x_max = x_max >= OUT_IMAGE_WIDTH ? OUT_IMAGE_WIDTH - 1 : x_max;
+        y_max = y_max >= OUT_IMAGE_HEIGHT ? OUT_IMAGE_HEIGHT - 1 : y_max;
+        // Store data for every pixel within the bounding box that falls within the radius
+        for (int x = x_min; x < x_max; ++x) {
+            for (int y = y_min; y < y_max; ++y) {
+                const float x_ab = (float)x + 0.5f - cpu_particles[i].location[0];
+                const float y_ab = (float)y + 0.5f - cpu_particles[i].location[1];
+                const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
+                if (pixel_distance <= cpu_particles[i].radius) {
                     const unsigned int pixel_offset = y * OUT_IMAGE_WIDTH + x;
                     // Offset into cpu_pixel_contrib buffers is index + histogram
                     // Increment cpu_pixel_contribs, so next contributor stores to correct offset
@@ -141,8 +136,6 @@ void cpu_stage2() {
                     memcpy(cpu_pixel_contrib_depth + storage_offset, &cpu_particles[i].location[2], sizeof(float));
                 }
             }
-        } else if(cpu_particles[i].type == Circle) {
-            // @TODO
         }
     }
 

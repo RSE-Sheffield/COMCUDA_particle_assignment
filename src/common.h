@@ -25,16 +25,9 @@ struct CImage {
 };
 typedef struct CImage CImage;
 
-
-enum ParticleType { Circle, Square };
-typedef enum ParticleType ParticleType;
-
 struct Particle {
-    ParticleType type;
     unsigned char color[4];
     float location[3];
-    float direction[2];
-    float speed;
     float radius;
 };
 typedef struct Particle Particle;

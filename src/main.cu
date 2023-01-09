@@ -55,20 +55,15 @@ int main(int argc, char **argv)
         //    return EXIT_FAILURE;
         //}
         // test cfg
-        user_config.circle_count = 0;
+        user_config.circle_count = 100;
         user_config.circle_opacity_average = 0.5;
         user_config.circle_opacity_standarddev = 2.0f;
         user_config.circle_rad_average = 10;
         user_config.circle_rad_standarddev = 2.0f;
-        user_config.square_count = 100;
-        user_config.square_opacity_average = 0.5;
-        user_config.square_opacity_standarddev = 2.0f;
-        user_config.square_rad_average = 50;
-        user_config.square_rad_standarddev = 3.0f;
     }
 
     // Generate Initial Particles from user_config
-    const unsigned int particles_count = user_config.circle_count + user_config.square_count;
+    const unsigned int particles_count = user_config.circle_count;
     Particle* particles = (Particle *)malloc(particles_count * sizeof(Particle));
     {
         // Random engine with a fixed seed and several distributions to be used
@@ -76,11 +71,9 @@ int main(int argc, char **argv)
         std::uniform_real_distribution<float> normalised_float_dist(0, 1);
         std::normal_distribution<float> circle_rad_dist(user_config.circle_rad_average, user_config.circle_rad_standarddev);
         std::normal_distribution<float> circle_opacity_dist(user_config.circle_opacity_average, user_config.circle_opacity_standarddev);
-        std::normal_distribution<float> square_rad_dist(user_config.square_rad_average, user_config.square_rad_standarddev);
-        std::normal_distribution<float> square_opacity_dist(user_config.square_opacity_average, user_config.square_opacity_standarddev);
         std::uniform_int_distribution<int> color_palette_dist(0, sizeof(base_color_palette)/sizeof(unsigned char[3]) - 1);
         // Common
-        for (unsigned int i = user_config.circle_count; i < particles_count; ++i) {
+        for (unsigned int i = 0; i < user_config.circle_count; ++i) {
             const int palette_index = color_palette_dist(rng);
             particles[i].color[0] = base_color_palette[palette_index][0];
             particles[i].color[1] = base_color_palette[palette_index][1];
@@ -88,25 +81,9 @@ int main(int argc, char **argv)
             particles[i].location[0] = normalised_float_dist(rng) * OUT_IMAGE_WIDTH;
             particles[i].location[1] = normalised_float_dist(rng) * OUT_IMAGE_HEIGHT;
             particles[i].location[2] = normalised_float_dist(rng);
-            // @todo
-            particles[i].direction[0] = 0.0f;
-            particles[i].direction[1] = 1.0f;
-            particles[i].speed = 1.0f;
-        }
-        // Circles
-        for (unsigned int i = 0; i < user_config.circle_count; ++i) {
-            particles[i].type = Circle;
+            // Circle specific
             particles[i].radius = circle_rad_dist(rng);
             float t_opacity = circle_opacity_dist(rng);
-            t_opacity = t_opacity < MIN_OPACITY ? MIN_OPACITY : t_opacity;
-            t_opacity = t_opacity > MAX_OPACITY ? MAX_OPACITY : t_opacity;
-            particles[i].color[3] = (unsigned char)(255 * t_opacity);
-        }
-        // Squares
-        for (unsigned int i = user_config.circle_count; i < particles_count; ++i) {
-            particles[i].type = Square;
-            particles[i].radius = square_rad_dist(rng);
-            float t_opacity = square_opacity_dist(rng);
             t_opacity = t_opacity < MIN_OPACITY ? MIN_OPACITY : t_opacity;
             t_opacity = t_opacity > MAX_OPACITY ? MAX_OPACITY : t_opacity;
             particles[i].color[3] = (unsigned char)(255 * t_opacity);
@@ -379,7 +356,7 @@ void parse_args(int argc, char **argv, Config *config) {
             memcpy(config->output_file, argv[i], arg_len);
             continue;
         }
-        fprintf(stderr, "Unexpected optional argument: %s\n", argv[i]);
+        fprintf(stderr, "Unexpected optional argument in position %d: %s\n", i, argv[i]);
         print_help(argv[0]);
     }
     if (t_arg) 

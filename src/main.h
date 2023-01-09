@@ -39,16 +39,6 @@ struct InputFile {
     float circle_rad_standarddev;
     float circle_opacity_average;
     float circle_opacity_standarddev;
-
-    /**
-     * The number of square particles
-     */
-    unsigned int square_count;
-
-    float square_rad_average;
-    float square_rad_standarddev;
-    float square_opacity_average;
-    float square_opacity_standarddev;
 };
 typedef struct InputFile InputFile;
 struct Runtimes
