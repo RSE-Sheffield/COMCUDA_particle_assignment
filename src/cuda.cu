@@ -2,6 +2,7 @@
 #include "helper.h"
 
 #include <cstring>
+#include <cmath>
 
 ///
 /// Algorithm storage

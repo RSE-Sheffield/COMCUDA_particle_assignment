@@ -9,14 +9,15 @@
 /// Utility Methods
 ///
 /**
- * Simple (inplace) quicksort pair sort implementation
+ * Simple (in place) quicksort pair sort implementation
  * Items at the matching index within keys and values are sorted according to keys in ascending order
  * @param keys_start Pointer to the start of the keys (depth) buffer
  * @param colours_start Pointer to the start of the values (colours) buffer (each color consists of three unsigned char)
- * @param count Number of items from the pointer to pair sort
+ * @param first Index of the first item to be sorted
+ * @param last Index of the last item to be sorted
  * @note This function is implemented at the bottom of cpu.c
  */
-void sort_pairs(float* keys_start, unsigned char* colours_start, int last, int first);
+void cpu_sort_pairs(float* keys_start, unsigned char* colours_start, int first, int last);
 
 
 ///
@@ -42,7 +43,7 @@ void cpu_begin(const Particle* init_particles, const unsigned int init_particles
 
     // Allocate a histogram to track how many particles contribute to each pixel
     cpu_pixel_contribs = (unsigned int *)malloc(OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * sizeof(unsigned int));
-    // Allocate an index to track where data for each pixel's contributing colour starts
+    // Allocate an index to track where data for each pixel's contributing colour starts/ends
     cpu_pixel_index = (unsigned int*)malloc((OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT + 1) * sizeof(unsigned int));
     // Init a buffer to store colours contributing to each pixel into (allocated in stage 2)
     cpu_pixel_contrib_colours = 0;
@@ -87,6 +88,9 @@ void cpu_stage1() {
             }
         }
     }
+#ifdef VALIDATION
+    validate_pixel_contribs(cpu_particles, cpu_particles_count, cpu_pixel_contribs, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT);
+#endif
 }
 void cpu_stage2() {
     // Exclusive prefix sum across the histogram to create an index
@@ -142,13 +146,18 @@ void cpu_stage2() {
     // Pair sort the colours contributing to each pixel based on ascending depth
     for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
         // Pair sort the colours which contribute to a single pigment
-        sort_pairs(
+        cpu_sort_pairs(
             cpu_pixel_contrib_depth,
             cpu_pixel_contrib_colours,
-            cpu_pixel_index[i + 1] - 1,
-            cpu_pixel_index[i]
+            cpu_pixel_index[i],
+            cpu_pixel_index[i + 1] - 1
         );
     }
+#ifdef VALIDATION
+    validate_pixel_index(cpu_pixel_contribs, cpu_pixel_index, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT);
+    validate_sorted_pairs(cpu_particles, cpu_particles_count,cpu_pixel_index, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT,
+        cpu_pixel_contrib_colours, cpu_pixel_contrib_depth);
+#endif
 }
 void cpu_stage3() {
     // Memset output image data to 255 (white)
@@ -163,8 +172,13 @@ void cpu_stage3() {
             cpu_output_image.data[(i * 3) + 0] = (unsigned char)((float)cpu_pixel_contrib_colours[j * 4 + 0] * opacity + (float)cpu_output_image.data[(i * 3) + 0] * (1 - opacity));
             cpu_output_image.data[(i * 3) + 1] = (unsigned char)((float)cpu_pixel_contrib_colours[j * 4 + 1] * opacity + (float)cpu_output_image.data[(i * 3) + 1] * (1 - opacity));
             cpu_output_image.data[(i * 3) + 2] = (unsigned char)((float)cpu_pixel_contrib_colours[j * 4 + 2] * opacity + (float)cpu_output_image.data[(i * 3) + 2] * (1 - opacity));
+            // cpu_pixel_contrib_colours is RGBA
+            // cpu_output_image.data is RGB (final output image does not have an alpha channel!)
         }
     }
+#ifdef VALIDATION
+    validate_blend(cpu_pixel_index, cpu_pixel_contrib_colours, &cpu_output_image);
+#endif
 }
 void cpu_end(CImage *output_image) {
     // Store return value
@@ -188,7 +202,7 @@ void cpu_end(CImage *output_image) {
     cpu_particles = 0;
 }
 
-void sort_pairs(float* keys_start, unsigned char* colours_start, const int last, const int first) {
+void cpu_sort_pairs(float* keys_start, unsigned char* colours_start, const int first, const int last) {
     // Based on https://www.tutorialspoint.com/explain-the-quick-sort-technique-in-c-language
     int i, j, pivot;
     float depth_t;
@@ -222,7 +236,7 @@ void sort_pairs(float* keys_start, unsigned char* colours_start, const int last,
         memcpy(colours_start + (4 * pivot), colours_start + (4 * j), 4 * sizeof(unsigned char));
         memcpy(colours_start + (4 * j), color_t, 4 * sizeof(unsigned char));
         // Recurse
-        sort_pairs(keys_start, colours_start, j - 1, first);
-        sort_pairs(keys_start, colours_start, last, j + 1);
+        cpu_sort_pairs(keys_start, colours_start, first, j - 1);
+        cpu_sort_pairs(keys_start, colours_start, j + 1, last);
     }
 }

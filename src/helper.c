@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <stdbool.h>
 
 #include "config.h"
 
@@ -15,296 +17,223 @@
 ///
 /// Utility Methods
 ///
+/**
+ * Simple (in place) quicksort pair sort implementation
+ * Items at the matching index within keys and values are sorted according to keys in ascending order
+ * @param keys_start Pointer to the start of the keys (depth) buffer
+ * @param colours_start Pointer to the start of the values (colours) buffer (each color consists of three unsigned char)
+ * @param first Index of the first item to be sorted
+ * @param last Index of the last item to be sorted
+ * @note This function is implemented at the bottom of cpu.c
+ */
+void help_sort_pairs(float* keys_start, unsigned char* colours_start, int first, int last);
 
-/*
 
-int skip_histogram_used = -1;
-void validate_histogram(const Image *input_image, Histogram_uint* test_histograms, int most_common_contrast) {
-    const unsigned int TILES_X = input_image->width / TILE_SIZE;
-    const unsigned int TILES_Y = input_image->height / TILE_SIZE;
-    // Allocate and generate our own internal histogram
-    Histogram_uint*histograms = (Histogram_uint*)malloc(TILES_X * TILES_Y * sizeof(Histogram_uint));
-    memset(histograms,0, TILES_X * TILES_Y * sizeof(Histogram_uint));
-    skip_histogram(input_image, histograms);
-    skip_histogram_used--;
+int skip_pixel_contribs_used = -1;
+void validate_pixel_contribs(
+    const Particle *particles, const unsigned int particles_count,
+    const unsigned int *test_pixel_contribs, const unsigned int out_image_width, const unsigned int out_image_height) {
+    // Allocate, copy and generate our own internal pixel_contribs
+    unsigned int* pixel_contribs = (unsigned int*)malloc(out_image_width * out_image_height * sizeof(unsigned int));
+    skip_pixel_contribs(particles, particles_count, pixel_contribs, out_image_width, out_image_height);
+    skip_pixel_contribs_used--;
     // Validate and report result
-    unsigned int bad_tiles = 0;
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            for (unsigned int i = 0; i < PIXEL_RANGE; ++ i) {
-                if (test_histograms[tile_index].histogram[i] != histograms[tile_index].histogram[i]) {
-                    bad_tiles++;
-                    break;
-                }
-            }
+    unsigned int bad_contribs = 0;
+    for (unsigned int i = 0; i < out_image_width * out_image_height; ++i) {
+        if (test_pixel_contribs[i] != pixel_contribs[i]) {
+            ++bad_contribs;
         }
     }
-    if (bad_tiles) {
-        fprintf(stderr, "validate_histogram() " CONSOLE_RED "found %d/%u tiles contain invalid histograms." CONSOLE_RESET "\n", bad_tiles, TILES_X * TILES_Y);
+    if (bad_contribs) {
+        fprintf(stderr, "validate_pixel_contribs() " CONSOLE_RED "found %d/%u pixels contain invalid values." CONSOLE_RESET "\n", bad_contribs, out_image_width * out_image_height);
     } else {
-        fprintf(stderr, "validate_histogram() " CONSOLE_GREEN "found no errors! (%u tiles were correct)" CONSOLE_RESET "\n", TILES_X * TILES_Y);
-    }    
-    // Find all contrast values with max (small chance multiple contrast values share max)
-    int validation_most_common_contrast[PIXEL_RANGE];
-    {
-        for (int i = 0; i < PIXEL_RANGE; ++i)
-            validation_most_common_contrast[i] = -1;
-        unsigned long long global_histogram[PIXEL_RANGE];
-        memset(global_histogram, 0, sizeof(unsigned long long) * PIXEL_RANGE);
-        // Generate histogram per tile
-        for (unsigned int i = 0; i < (unsigned int)(input_image->width * input_image->height); ++i) {                
-            const unsigned char pixel = input_image->data[i];
-            global_histogram[pixel]++;
-        }
-        // Find max value
-        // Find the most common contrast value
-        unsigned long long max_c = 0;  // Max count of pixels with a specific contrast value
-        int max_i = 0;  // Index (contrast value) of the histogram bin with max_c
-        for (int i = 0; i < PIXEL_RANGE; ++i) {
-            if (max_c < global_histogram[i]) {
-                max_c = global_histogram[i];
-                max_i = i;
-            }
-        }
-        // Find everywhere it occurs
-        int j = 0;
-        for (int i = max_i; i < PIXEL_RANGE; ++i) {
-            if (global_histogram[i] == max_c)
-            validation_most_common_contrast[j++] = i;
-        }
+        fprintf(stderr, "validate_pixel_contribs() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
     }
-    int bad_contrast = 1;
-    for (int i = 0; i < PIXEL_RANGE && validation_most_common_contrast[i] != -1; ++i){
-        if (most_common_contrast == validation_most_common_contrast[i]) {
-            bad_contrast = 0;
-            break;
-        }
-    }
-    printf("validate_histogram() Most common contrast value: %s" CONSOLE_RESET "\n", bad_contrast ? CONSOLE_RED "Fail": CONSOLE_GREEN "Pass");
-    
-    // Release internal histogram
-    free(histograms);
+    // Release internal pixel_contribs
+    free(pixel_contribs);
 }
-int skip_histogram(const Image *input_image, Histogram_uint* histograms) {
-    const unsigned int TILES_X = input_image->width / TILE_SIZE;
-    const unsigned int TILES_Y = input_image->height / TILE_SIZE;
-    unsigned long long global_histogram[PIXEL_RANGE];
-    memset(global_histogram, 0, sizeof(unsigned long long) * PIXEL_RANGE);
-    // Generate histogram per tile
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            const unsigned int tile_offset = (t_y * TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE); 
-            // For each pixel within the tile
-            for (int p_x = 0; p_x < TILE_SIZE; ++p_x) {
-                for (int p_y = 0; p_y < TILE_SIZE; ++p_y) {
-                    // Load pixel
-                    const unsigned int pixel_offset = (p_y * input_image->width + p_x); 
-                    const unsigned char pixel = input_image->data[tile_offset + pixel_offset];
-                    histograms[tile_index].histogram[pixel]++;
-                    global_histogram[pixel]++;
+void skip_pixel_contribs(
+    const Particle *particles, const unsigned int particles_count,
+    unsigned int *return_pixel_contribs, const unsigned int out_image_width, const unsigned int out_image_height) {
+    // Reset the pixel contributions histogram
+    memset(return_pixel_contribs, 0, out_image_width * out_image_height * sizeof(unsigned int));
+    // Update each particle & calculate how many particles contribute to each image
+    for (unsigned int i = 0; i < particles_count; ++i) {
+        // Compute bounding box [inclusive-inclusive]
+        int x_min = (int)roundf(particles[i].location[0] - particles[i].radius);
+        int y_min = (int)roundf(particles[i].location[1] - particles[i].radius);
+        int x_max = (int)roundf(particles[i].location[0] + particles[i].radius);
+        int y_max = (int)roundf(particles[i].location[1] + particles[i].radius);
+        // Clamp bounding box to image bounds
+        x_min = x_min < 0 ? 0 : x_min;
+        y_min = y_min < 0 ? 0 : y_min;
+        x_max = x_max >= (int)out_image_width ? (int)out_image_width - 1 : x_max;
+        y_max = y_max >= (int)out_image_height ? (int)out_image_height - 1 : y_max;
+        // For each pixel in the bounding box, check that it falls within the radius
+        for (int x = x_min; x < x_max; ++x) {
+            for (int y = y_min; y < y_max; ++y) {
+                const float x_ab = (float)x + 0.5f - particles[i].location[0];
+                const float y_ab = (float)y + 0.5f - particles[i].location[1];
+                const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
+                if (pixel_distance <= particles[i].radius) {
+                    const unsigned int pixel_offset = y * out_image_width + x;
+                    ++return_pixel_contribs[pixel_offset];
                 }
             }
         }
     }
-    // Find the most common contrast value
-    unsigned long long max_c = 0;
-    int max_i = -1; // Init with an invalid value
-    for (int i = 0; i < PIXEL_RANGE; ++i) {
-        if (max_c < global_histogram[i]) {
-            max_c = global_histogram[i];
-            max_i = i;
-        }
-    }
-    skip_histogram_used++;
-    // Return the contrast value (it's index in the histogram), not the number of occurrences!
-    return max_i;
+    skip_pixel_contribs_used++;
 }
 
-int skip_limited_histogram_used = -1;
-void validate_limited_histogram(unsigned int TILES_X, unsigned int TILES_Y, Histogram_uint* histograms, Histogram_uint* test_limited_histograms) {
-    // Allocate, copy and generate our own internal limited histogram
-    Histogram_uint*limited_histograms = (Histogram_uint*)malloc(TILES_X * TILES_Y * sizeof(Histogram_uint));
-    memset(limited_histograms,0, TILES_X * TILES_Y * sizeof(Histogram_uint));
-    skip_limited_histogram(TILES_X, TILES_Y, histograms, limited_histograms);
-    skip_limited_histogram_used--;
+int skip_pixel_index_used = -1;
+void validate_pixel_index(const unsigned int *pixel_contribs, const unsigned int *test_pixel_index, const unsigned int out_image_width, const unsigned int out_image_height) {
+    // Allocate, copy and generate our own internal pixel_index
+    unsigned int* pixel_index = (unsigned int*)malloc((out_image_width * out_image_height + 1) * sizeof(unsigned int));
+    skip_pixel_index(pixel_contribs, pixel_index, out_image_width, out_image_height);
+    skip_pixel_index_used--;
     // Validate and report result
-    unsigned int bad_histograms = 0;
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            for (unsigned int i = 0; i < PIXEL_RANGE; ++ i) {
-                if (test_limited_histograms[tile_index].histogram[i] != limited_histograms[tile_index].histogram[i]) {
-                    bad_histograms++;
-                    break;
-                }
-            }
+    unsigned int bad_indices = 0;
+    for (unsigned int i = 0; i < (out_image_width * out_image_height + 1); ++i) {
+        if (test_pixel_index[i] != pixel_index[i]) {
+            ++bad_indices;
         }
     }
-    if (bad_histograms) {
-        fprintf(stderr, "validate_limited_histogram() " CONSOLE_RED "found %d/%u incorrect limited histograms." CONSOLE_RESET "\n", bad_histograms, TILES_X * TILES_Y);
+    if (bad_indices) {
+        fprintf(stderr, "validate_pixel_index() " CONSOLE_RED "found %d/%u pixels contain invalid indices." CONSOLE_RESET "\n", bad_indices, out_image_width * out_image_height);
     } else {
-        fprintf(stderr, "validate_limited_histogram() " CONSOLE_GREEN "found no errors! (%u limited histograms were correct)" CONSOLE_RESET "\n", TILES_X * TILES_Y);
+        fprintf(stderr, "validate_pixel_index() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
     }
-    // Release internal histogram
-    free(limited_histograms);
+    // Release internal pixel_index
+    free(pixel_index);    
 }
-void skip_limited_histogram(unsigned int TILES_X, unsigned int TILES_Y, Histogram_uint* histograms, Histogram_uint* limited_histograms) {
-    // For each histogram
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            // Clamp where count exceeds ABSOLUTE_CONTRAST_LIMIT
-            int extra_contrast = 0;
-            for (unsigned int i = 0; i < PIXEL_RANGE; ++i) {
-                if (histograms[tile_index].histogram[i] > ABSOLUTE_CONTRAST_LIMIT) {
-                    extra_contrast += histograms[tile_index].histogram[i] - ABSOLUTE_CONTRAST_LIMIT;
-                    limited_histograms[tile_index].histogram[i] = ABSOLUTE_CONTRAST_LIMIT;
-                } else {
-                    limited_histograms[tile_index].histogram[i] = histograms[tile_index].histogram[i];
-                }
-            }
-            // int lost_contrast = 0;
-            if (extra_contrast > PIXEL_RANGE) {
-                const int bonus_contrast = extra_contrast / PIXEL_RANGE;  // integer division is fine here
-                // lost_contrast = extra_contrast % PIXEL_RANGE;
-                for (int i = 0; i < PIXEL_RANGE; ++i) {
-                    limited_histograms[tile_index].histogram[i] += bonus_contrast;
-                }
-            }
-        }
+void skip_pixel_index(const unsigned int *pixel_contribs, unsigned int *return_pixel_index, const unsigned int out_image_width, const unsigned int out_image_height) {
+    // Exclusive prefix sum across the histogram to create an index
+    return_pixel_index[0] = 0;
+    for (unsigned int i = 0; i < out_image_width * out_image_height; ++i) {
+        return_pixel_index[i + 1] = return_pixel_index[i] + pixel_contribs[i];
     }
-    skip_limited_histogram_used++;
-}
-int skip_cumulative_histogram_used = 0;
-void validate_cumulative_histogram(unsigned int TILES_X, unsigned int TILES_Y, Histogram_uint* limited_histograms, Histogram_uint* test_cumulative_histograms) {
-    // Allocate, copy and generate our own internal histogram
-    Histogram_uint* cumulative_histograms = (Histogram_uint*)malloc(TILES_X * TILES_Y * sizeof(Histogram_uint));
-    memset(cumulative_histograms, 0, TILES_X * TILES_Y * sizeof(Histogram_uint));
-    skip_cumulative_histogram(TILES_X, TILES_Y, limited_histograms, cumulative_histograms);
-    skip_cumulative_histogram_used--;
-    // Validate and report result
-    unsigned int bad_histograms = 0;
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            for (unsigned int i = 0; i < PIXEL_RANGE; ++ i) {
-                if (test_cumulative_histograms[tile_index].histogram[i] != cumulative_histograms[tile_index].histogram[i]) {
-                    bad_histograms++;
-                    break;
-                }
-            }
-        }
-    }
-    if (bad_histograms) {
-        fprintf(stderr, "validate_cumulative_histogram() " CONSOLE_RED "found %d/%u incorrect cumulative histograms." CONSOLE_RESET "\n", bad_histograms, TILES_X * TILES_Y);
-    } else {
-        fprintf(stderr, "validate_cumulative_histogram() " CONSOLE_GREEN "found no errors! (%u cumulative histograms were correct)" CONSOLE_RESET "\n", TILES_X * TILES_Y);
-    }
-    // Release internal histogram
-    free(cumulative_histograms);
-}
-void skip_cumulative_histogram(unsigned int TILES_X, unsigned int TILES_Y, Histogram_uint* limited_histograms, Histogram_uint* cumulative_histograms) {
-    // For each histogram
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            // Find cdf_min and convert histogram to cumulative
-            // This is essentially a scan
-            cumulative_histograms[tile_index].histogram[0] = limited_histograms[tile_index].histogram[0];
-            // unsigned int cdf_min = cumulative_histograms[t_x][t_y].histogram[0];
-            for (unsigned int i = 1; i < PIXEL_RANGE; ++i) {
-                cumulative_histograms[tile_index].histogram[i] = cumulative_histograms[tile_index].histogram[i-1] + limited_histograms[tile_index].histogram[i];
-                // if (histograms[t_x][t_y].cumulative_histogram[i-1] == 0 && histograms[t_x][t_y].cumulative_histogram[i] != 0) { // Second half of condition is redundant in serial
-                //     cdf_min = histograms[t_x][t_y].cumulative_histogram[i];
-                // }
-            }
-        }
-    }
-    skip_cumulative_histogram_used++;
-}
-int skip_equalised_histogram_used = 0;
-void validate_equalised_histogram(unsigned int TILES_X, unsigned int TILES_Y, Histogram_uint* histograms, Histogram_uchar* test_equalisied_histograms) {
-    // Allocate, copy and generate our own internal histogram
-    Histogram_uchar* equalised_histograms = (Histogram_uchar*)malloc(TILES_X * TILES_Y * sizeof(Histogram_uchar));
-    memset(equalised_histograms, 0, TILES_X* TILES_Y * sizeof(Histogram_uchar));
-    skip_equalised_histogram(TILES_X, TILES_Y, histograms, equalised_histograms);
-    skip_equalised_histogram_used--;
-    // Validate and report result
-    unsigned int bad_histograms = 0;
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            for (unsigned int i = 0; i < PIXEL_RANGE; ++ i) {
-                if (test_equalisied_histograms[tile_index].histogram[i] != equalised_histograms[tile_index].histogram[i]) {
-                    bad_histograms++;
-                    break;
-                }
-            }
-        }
-    }
-    if (bad_histograms) {
-        fprintf(stderr, "validate_equalised_histogram() " CONSOLE_RED "found %d/%u incorrect equalised histograms." CONSOLE_RESET "\n", bad_histograms, TILES_X * TILES_Y);
-    } else {
-        fprintf(stderr, "validate_equalised_histogram() " CONSOLE_GREEN "found no errors! (%u equalised histograms were correct)" CONSOLE_RESET "\n", TILES_X * TILES_Y);
-    }
-    // Release internal histogram
-    free(equalised_histograms);
-}
-void skip_equalised_histogram(unsigned int TILES_X, unsigned int TILES_Y, Histogram_uint* histograms, Histogram_uchar* equalisied_histograms) {
-    Histogram_uint* limited_histograms = (Histogram_uint*)malloc(TILES_X * TILES_Y * sizeof(Histogram_uint));
-    memset(limited_histograms, 0, TILES_X * TILES_Y * sizeof(Histogram_uint));
-    Histogram_uint* cumulative_histograms = (Histogram_uint*)malloc(TILES_X * TILES_Y * sizeof(Histogram_uint));
-    memset(cumulative_histograms, 0, TILES_X * TILES_Y * sizeof(Histogram_uint));
-    skip_limited_histogram(TILES_X, TILES_Y, histograms, limited_histograms);
-    skip_limited_histogram_used--;
-    skip_cumulative_histogram(TILES_X, TILES_Y, limited_histograms, cumulative_histograms);
-    skip_cumulative_histogram_used--;
-    // For each histogram
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            // Find lost_contrast (This requires the original histogram!)
-            int extra_contrast = 0;
-            for (unsigned int i = 0; i < PIXEL_RANGE; ++i) {
-                if (histograms[tile_index].histogram[i] > ABSOLUTE_CONTRAST_LIMIT) {
-                    extra_contrast += histograms[tile_index].histogram[i] - ABSOLUTE_CONTRAST_LIMIT;
-                }
-            }
-            const int lost_contrast = extra_contrast % PIXEL_RANGE;
-            // Find cdf_min (This requires cumulative histogram)
-            unsigned int cdf_min = cumulative_histograms[tile_index].histogram[0];
-            for (unsigned int i = 1; i < PIXEL_RANGE; ++i) {
-                if (cumulative_histograms[tile_index].histogram[i-1] == 0 && cumulative_histograms[tile_index].histogram[i] != 0) { // Second half of condition is redundant in serial
-                    cdf_min = cumulative_histograms[tile_index].histogram[i];
-                    break;
-                }
-            }
-            // Calculate equalised histogram value
-            for (unsigned int i = 0; i < PIXEL_RANGE; ++i) {
-                float t = roundf(((cumulative_histograms[tile_index].histogram[i] - cdf_min) / (float)(TILE_PIXELS - lost_contrast)) * (float)(PIXEL_RANGE - 2)) + 1.0f;
-                t = t > PIXEL_MAX ? PIXEL_MAX : t; // indices before cdf_min overflow
-                // Clamp value to bounds
-                equalisied_histograms[tile_index].histogram[i] = (unsigned char)t;
-            }
-        }
-    }
-    skip_equalised_histogram_used++;
-    // Release internal histogram
-    free(limited_histograms);
-    free(cumulative_histograms);
+    skip_pixel_index_used++;
 }
 
-int skip_interpolate_used = -1;
-void validate_interpolate(const Image *input_image, Histogram_uchar* equalisied_histograms, Image *test_output_image) {
+int skip_sorted_pairs_used = -1;
+void validate_sorted_pairs(
+    const Particle *particles, const unsigned int particles_count,
+    const unsigned int *pixel_index, const unsigned int out_image_width, const unsigned int out_image_height,
+    const unsigned char *test_pixel_contrib_colours, const float *test_pixel_contrib_depth) {
+    // Allocate, copy and generate our own internal pixel_index
+    const unsigned int TOTAL_CONTRIBS = pixel_index[out_image_width * out_image_height];
+    unsigned char* pixel_contrib_colours = (unsigned char*)malloc(TOTAL_CONTRIBS * 4 * sizeof(unsigned char));
+    float* pixel_contrib_depth = (float*)malloc(TOTAL_CONTRIBS * sizeof(float));
+    skip_sorted_pairs(
+        particles, particles_count,
+        pixel_index, out_image_width, out_image_height,
+        pixel_contrib_colours, pixel_contrib_depth);
+    skip_sorted_pairs_used--;
+    // Validate and report result
+    unsigned int bad_colours = 0;
+    unsigned int bad_depth = 0;
+    for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
+        bool pixel_has_bad_color = false;
+        bool pixel_has_bad_depth = false;
+        for (unsigned int j = pixel_index[i]; j < pixel_index[i + 1]; ++j) {
+            if (!pixel_has_bad_color && (
+                test_pixel_contrib_colours[j * 4 + 0] != pixel_contrib_colours[j * 4 + 0] ||
+                test_pixel_contrib_colours[j * 4 + 1] != pixel_contrib_colours[j * 4 + 1] ||
+                test_pixel_contrib_colours[j * 4 + 2] != pixel_contrib_colours[j * 4 + 2] ||
+                test_pixel_contrib_colours[j * 4 + 3] != pixel_contrib_colours[j * 4 + 3] )                
+            ) {
+                ++bad_colours;
+                pixel_has_bad_color = true;
+            }
+            if (!pixel_has_bad_depth && test_pixel_contrib_depth &&
+                test_pixel_contrib_depth[j] != pixel_contrib_depth[j]) { // Soften with epsilon?
+                ++bad_depth;
+                pixel_has_bad_depth = true;
+            }
+        }
+    }
+    if (bad_colours) {
+        fprintf(stderr, "validate_sorted_pairs() " CONSOLE_RED "found %d/%u pixels have wrong/unsorted colours." CONSOLE_RESET "\n", bad_colours, out_image_width * out_image_height);
+    } else {
+        fprintf(stderr, "validate_sorted_pairs() " CONSOLE_GREEN "found no colour errors! (%u pixels colours were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
+    }
+    if (test_pixel_contrib_depth) {
+        if (bad_depth) {
+            fprintf(stderr, "validate_sorted_pairs() " CONSOLE_RED "found %d/%u pixels have wrong/unsorted depths." CONSOLE_RESET "\n", bad_depth, out_image_width * out_image_height);
+            if (!bad_colours) {
+                fprintf(stderr, CONSOLE_YELLOW "Colours were correct, so incorrect depth is not a problem." CONSOLE_RESET "\n");
+            }
+        } else {
+            fprintf(stderr, "validate_sorted_pairs() " CONSOLE_GREEN "found no depth errors! (%u pixels depths were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
+        }
+    }
+    // Release internal pixel contrib buffers
+    free(pixel_contrib_colours);
+    free(pixel_contrib_depth);
+}
+void skip_sorted_pairs(
+    const Particle *particles, const unsigned int particles_count,
+    const unsigned int *pixel_index, const unsigned int out_image_width, const unsigned int out_image_height,
+    unsigned char *return_pixel_contrib_colours, float *return_pixel_contrib_depth) {
+    // Allocate a temporary internal pixel contributions histogram
+    unsigned int *pixel_contribs = (unsigned int *)malloc(out_image_width * out_image_height * sizeof(unsigned int));
+    memset(pixel_contribs, 0, out_image_width * out_image_height * sizeof(unsigned int));
+    // Store colours according to index
+    // For each particle, store a copy of the colour/depth in cpu_pixel_contribs for each contributed pixel
+    for (unsigned int i = 0; i < particles_count; ++i) {
+        // Compute bounding box [inclusive-inclusive]
+        int x_min = (int)roundf(particles[i].location[0] - particles[i].radius);
+        int y_min = (int)roundf(particles[i].location[1] - particles[i].radius);
+        int x_max = (int)roundf(particles[i].location[0] + particles[i].radius);
+        int y_max = (int)roundf(particles[i].location[1] + particles[i].radius);
+        // Clamp bounding box to image bounds
+        x_min = x_min < 0 ? 0 : x_min;
+        y_min = y_min < 0 ? 0 : y_min;
+        x_max = x_max >= (int)out_image_width ? (int)out_image_width - 1 : x_max;
+        y_max = y_max >= (int)out_image_height ? (int)out_image_height - 1 : y_max;
+        // Store data for every pixel within the bounding box that falls within the radius
+        for (int x = x_min; x < x_max; ++x) {
+            for (int y = y_min; y < y_max; ++y) {
+                const float x_ab = (float)x + 0.5f - particles[i].location[0];
+                const float y_ab = (float)y + 0.5f - particles[i].location[1];
+                const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
+                if (pixel_distance <= particles[i].radius) {
+                    const unsigned int pixel_offset = y * out_image_width + x;
+                    // Offset into cpu_pixel_contrib buffers is index + histogram
+                    // Increment cpu_pixel_contribs, so next contributor stores to correct offset
+                    const unsigned int storage_offset = pixel_index[pixel_offset] + (pixel_contribs[pixel_offset]++);
+                    // Copy data to cpu_pixel_contrib buffers
+                    memcpy(return_pixel_contrib_colours + (4 * storage_offset), particles[i].color, 4 * sizeof(unsigned char));
+                    memcpy(return_pixel_contrib_depth + storage_offset, &particles[i].location[2], sizeof(float));
+                }
+            }
+        }
+    }
+
+    // Pair sort the colours contributing to each pixel based on ascending depth
+    for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
+        // Pair sort the colours which contribute to a single pigment
+        help_sort_pairs(
+            return_pixel_contrib_depth,
+            return_pixel_contrib_colours,
+            pixel_index[i],
+            pixel_index[i + 1] - 1
+        );
+    }
+    // Release temporary internal pixel contributions histogram
+    free(pixel_contribs);
+    skip_sorted_pairs_used++;
+}
+
+
+int skip_blend_used = -1;
+void validate_blend(const unsigned int *pixel_index, const unsigned char *pixel_contrib_colours, const CImage *test_output_image) {
     // Allocate, copy and generate our own internal output image
-    Image output_image;
-    memcpy(&output_image, input_image, sizeof(Image));
-    output_image.data = malloc(output_image.width * output_image.height * sizeof(unsigned char));
-    
-    skip_interpolate(input_image, equalisied_histograms, &output_image);
-    skip_interpolate_used--;
+    CImage output_image;
+    memcpy(&output_image, test_output_image, sizeof(CImage));
+    output_image.data = (unsigned char*)malloc(output_image.width * output_image.height * output_image.channels * sizeof(unsigned char));
+    skip_blend(pixel_index, pixel_contrib_colours, &output_image);
+    skip_blend_used--;
     // Validate and report result
     unsigned int bad_pixels = 0;
     unsigned int close_pixels = 0;
@@ -319,100 +248,81 @@ void validate_interpolate(const Image *input_image, Histogram_uchar* equalisied_
         }
     }
     if (bad_pixels) {
-        fprintf(stderr, "validate_interpolate() " CONSOLE_RED "found %d/%u incorrect pixels." CONSOLE_RESET "\n", bad_pixels, output_image.width * output_image.height);
+        fprintf(stderr, "validate_blend() " CONSOLE_RED "found %d/%u incorrect pixels." CONSOLE_RESET "\n", bad_pixels, output_image.width * output_image.height);
     } else {
-        fprintf(stderr, "validate_interpolate() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", output_image.width * output_image.height);
+        fprintf(stderr, "validate_blend() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", output_image.width * output_image.height);
     }
     // Release internal output image
-    free(output_image.data);    
+    free(output_image.data);
 }
-void skip_interpolate(const Image *input_image, Histogram_uchar* equalisied_histograms, Image *output_image) {
-    const unsigned int TILES_X = input_image->width / TILE_SIZE;
-    const unsigned int TILES_Y = input_image->height / TILE_SIZE;
-    // For each tile
-    for (unsigned int t_x = 0; t_x < TILES_X; ++t_x) {
-        for (unsigned int t_y = 0; t_y < TILES_Y; ++t_y) {
-            const unsigned int tile_index = (t_y * TILES_X + t_x);
-            const unsigned int tile_offset = (t_y * TILES_X * TILE_SIZE * TILE_SIZE + t_x * TILE_SIZE); 
-            // For each pixel within the tile
-            for (unsigned int p_x = 0; p_x < TILE_SIZE; ++p_x) {
-                for (unsigned int p_y = 0; p_y < TILE_SIZE; ++p_y) {
-                    // Load pixel
-                    const unsigned int pixel_offset = (p_y * input_image->width + p_x); 
-                    const unsigned char pixel = input_image->data[tile_offset + pixel_offset];
-                    // Interpolate histogram values
-                    unsigned char lerp_pixel;
-                    // Decide how to interpolate based on the pixel position
-                    // The branching could be removed, by making boundary interpolation interpolate against it's own tile with clamping
-                    // Corners, no interpolation
-                    if (((t_x == 0 && p_x < HALF_TILE_SIZE) || (t_x == TILES_X - 1 && p_x >= HALF_TILE_SIZE)) &&
-                        ((t_y == 0 && p_y < HALF_TILE_SIZE) || (t_y == TILES_Y - 1 && p_y >= HALF_TILE_SIZE))) {
-                        lerp_pixel = equalisied_histograms[tile_index].histogram[pixel];
-                    // X Border, linear interpolation
-                    } else if ((t_x == 0 && p_x < HALF_TILE_SIZE) || (t_x == TILES_X - 1 && p_x >= HALF_TILE_SIZE)) {
-                        const int direction = lerp_direction(p_y);
-                        const unsigned int tile_index_away = ((t_y + direction) * TILES_X + t_x);
-                        const unsigned char home_pixel = equalisied_histograms[tile_index].histogram[pixel];
-                        const unsigned char away_pixel = equalisied_histograms[tile_index_away].histogram[pixel];
-                        const float home_weight = lerp_weight(p_y);
-                        lerp_pixel = mix_uc(home_pixel, away_pixel, home_weight);
-                    // Y Border, linear interpolation
-                    } else if ((t_y == 0 && p_y < HALF_TILE_SIZE) || (t_y == TILES_Y - 1 && p_y >= HALF_TILE_SIZE)) {
-                        const int direction = lerp_direction(p_x);
-                        const unsigned int tile_index_away = (t_y * TILES_X + (t_x + direction));
-                        const unsigned char home_pixel = equalisied_histograms[tile_index].histogram[pixel];
-                        const unsigned char away_pixel = equalisied_histograms[tile_index_away].histogram[pixel];
-                        const float home_weight = lerp_weight(p_x);
-                        lerp_pixel = mix_uc(home_pixel, away_pixel, home_weight);
-                    // Centre, bilinear interpolation
-                    } else {
-                        const int direction_x = lerp_direction(p_x);
-                        const int direction_y = lerp_direction(p_y);
-                        // Lerp home row
-                        float home_lerp;
-                        {
-                            const unsigned int tile_index_away = (t_y * TILES_X + (t_x + direction_x));
-                            const unsigned char home_pixel = equalisied_histograms[tile_index].histogram[pixel];
-                            const unsigned char away_pixel = equalisied_histograms[tile_index_away].histogram[pixel];
-                            const float home_weight = lerp_weight(p_x);
-                            home_lerp = mix_uc(home_pixel, away_pixel, home_weight);
-                        }
-                        // Lerp away row
-                        float away_lerp;
-                        {
-                            const unsigned int tile_index_home = ((t_y + direction_y) * TILES_X + t_x);
-                            const unsigned int tile_index_away = ((t_y + direction_y) * TILES_X + (t_x + direction_x));
-                            const unsigned char home_pixel = equalisied_histograms[tile_index_home].histogram[pixel];
-                            const unsigned char away_pixel = equalisied_histograms[tile_index_away].histogram[pixel];
-                            const float home_weight = lerp_weight(p_x);
-                            away_lerp = mix_uc(home_pixel, away_pixel, home_weight);
-                        }
-                        // Lerp home and away over column
-                        {
-                            const float home_weight = lerp_weight(p_y);
-                            lerp_pixel = (unsigned char)mix_f(home_lerp, away_lerp, home_weight);
-                        }
-                    }
-                    // Store pixel
-                    output_image->data[tile_offset + pixel_offset] = lerp_pixel;
-                }
-            }
+void skip_blend(const unsigned int *pixel_index, const unsigned char *pixel_contrib_colours, CImage *return_output_image) {
+    // Memset output image data to 255 (white)
+    memset(return_output_image->data, 255, return_output_image->width * return_output_image->height * return_output_image->channels * sizeof(unsigned char));
+
+    // Order dependent blending into output image
+    for (int i = 0; i < return_output_image->width * return_output_image->height; ++i) {
+        for (unsigned int j = pixel_index[i]; j < pixel_index[i + 1]; ++j) {
+            // Blend each of the red/green/blue colours according to the below blend formula
+            // dest = src * opacity + dest * (1 - opacity);
+            const float opacity = (float)pixel_contrib_colours[j * 4 + 3] / (float)255;
+            return_output_image->data[(i * 3) + 0] = (unsigned char)((float)pixel_contrib_colours[j * 4 + 0] * opacity + (float)return_output_image->data[(i * 3) + 0] * (1 - opacity));
+            return_output_image->data[(i * 3) + 1] = (unsigned char)((float)pixel_contrib_colours[j * 4 + 1] * opacity + (float)return_output_image->data[(i * 3) + 1] * (1 - opacity));
+            return_output_image->data[(i * 3) + 2] = (unsigned char)((float)pixel_contrib_colours[j * 4 + 2] * opacity + (float)return_output_image->data[(i * 3) + 2] * (1 - opacity));
+            // cpu_pixel_contrib_colours is RGBA
+            // cpu_output_image.data is RGB (final output image does not have an alpha channel!)
         }
     }
-    skip_interpolate_used++;
+    skip_blend_used++;
 }
-*/
 
-// @TODO
 int getSkipUsed() {
-    return 0; // skip_histogram_used + skip_limited_histogram_used + skip_cumulative_histogram_used + skip_equalised_histogram_used + skip_interpolate_used;
+    return skip_pixel_contribs_used + skip_pixel_index_used + skip_sorted_pairs_used + skip_blend_used;
 }
 int getStage1SkipUsed() {
-    return 0; //skip_histogram_used;
+    return skip_pixel_contribs_used;
 }
 int getStage2SkipUsed() {
-    return 0; //skip_limited_histogram_used + skip_cumulative_histogram_used + skip_equalised_histogram_used;
+    return skip_pixel_index_used + skip_sorted_pairs_used;
 }
 int getStage3SkipUsed() {
-    return 0; //skip_interpolate_used;
+    return skip_blend_used;
+}
+
+void help_sort_pairs(float* keys_start, unsigned char* colours_start, const int first, const int last) {
+    // Based on https://www.tutorialspoint.com/explain-the-quick-sort-technique-in-c-language
+    int i, j, pivot;
+    float depth_t;
+    unsigned char color_t[4];
+    if (first < last) {
+        pivot = first;
+        i = first;
+        j = last;
+        while (i < j) {
+            while (keys_start[i] <= keys_start[pivot] && i < last)
+                i++;
+            while (keys_start[j] > keys_start[pivot])
+                j--;
+            if (i < j) {
+                // Swap key
+                depth_t = keys_start[i];
+                keys_start[i] = keys_start[j];
+                keys_start[j] = depth_t;
+                // Swap color
+                memcpy(color_t, colours_start + (4 * i), 4 * sizeof(unsigned char));
+                memcpy(colours_start + (4 * i), colours_start + (4 * j), 4 * sizeof(unsigned char));
+                memcpy(colours_start + (4 * j), color_t, 4 * sizeof(unsigned char));
+            }
+        }
+        // Swap key
+        depth_t = keys_start[pivot];
+        keys_start[pivot] = keys_start[j];
+        keys_start[j] = depth_t;
+        // Swap color
+        memcpy(color_t, colours_start + (4 * pivot), 4 * sizeof(unsigned char));
+        memcpy(colours_start + (4 * pivot), colours_start + (4 * j), 4 * sizeof(unsigned char));
+        memcpy(colours_start + (4 * j), color_t, 4 * sizeof(unsigned char));
+        // Recurse
+        help_sort_pairs(keys_start, colours_start, first, j - 1);
+        help_sort_pairs(keys_start, colours_start, j + 1, last);
+    }
 }

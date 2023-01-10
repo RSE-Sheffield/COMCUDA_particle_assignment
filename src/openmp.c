@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <omp.h>
+#include <math.h>
 
 void openmp_begin(const Particle* init_particles, const unsigned int init_particles_count) {
 
