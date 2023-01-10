@@ -342,7 +342,8 @@ void parse_args(int argc, char **argv, Config *config) {
     {
         // Attempt to parse as two uints, delimited by , or x or X
         const int in_width = atoi(strtok(argv[3], ",xX"));
-        const int in_height = atoi(strtok(NULL, ",xX"));
+        const char *in_height_str = strtok(NULL, ",xX");
+        const int in_height = in_height_str ? atoi(in_height_str) : 0;
         const char *in_end = strtok(NULL, ",x");
         if (in_width > 0 && in_height > 0 && in_end == NULL) {  // width + height provided
             config->out_image_width = (unsigned int)in_width;
