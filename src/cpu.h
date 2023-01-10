@@ -12,8 +12,11 @@ extern "C" {
  * Memory allocation and initialisation occurs here, so that it can be timed separate to the algorithm
  * @param init_particles Pointer to an array of particle structures
  * @param init_particles_count The number of elements within the particles array
+ * @param out_image_width The width of the final image to be output
+ * @param out_image_height The height of the final image to be output
  */
-void cpu_begin(const Particle * init_particles, unsigned int init_particles_count);
+void cpu_begin(const Particle * init_particles, unsigned int init_particles_count,
+    unsigned int out_image_width, unsigned int out_image_height);
 /**
  * Create a localised histogram for each tile of the image
  */

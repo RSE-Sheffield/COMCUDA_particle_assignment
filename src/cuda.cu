@@ -9,7 +9,8 @@
 ///
 
 
-void cuda_begin(const Particle* init_particles, const unsigned int init_particles_count) {
+void cuda_begin(const Particle* init_particles, const unsigned int init_particles_count,
+    const unsigned int out_image_width, const unsigned int out_image_height) {
 
 }
 void cuda_stage1() {

@@ -25,6 +25,9 @@ struct CImage {
 };
 typedef struct CImage CImage;
 
+/**
+ * Data required to render a single circle particle
+ */
 struct Particle {
     unsigned char color[4];
     float location[3];

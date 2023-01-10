@@ -132,7 +132,7 @@ void validate_sorted_pairs(
     // Validate and report result
     unsigned int bad_colours = 0;
     unsigned int bad_depth = 0;
-    for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
+    for (unsigned int i = 0; i < out_image_width * out_image_height; ++i) {
         bool pixel_has_bad_color = false;
         bool pixel_has_bad_depth = false;
         for (unsigned int j = pixel_index[i]; j < pixel_index[i + 1]; ++j) {
@@ -211,7 +211,7 @@ void skip_sorted_pairs(
     }
 
     // Pair sort the colours contributing to each pixel based on ascending depth
-    for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
+    for (unsigned int i = 0; i < out_image_width * out_image_height; ++i) {
         // Pair sort the colours which contribute to a single pigment
         help_sort_pairs(
             return_pixel_contrib_depth,

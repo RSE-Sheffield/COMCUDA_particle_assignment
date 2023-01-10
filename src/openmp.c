@@ -6,7 +6,8 @@
 #include <omp.h>
 #include <math.h>
 
-void openmp_begin(const Particle* init_particles, const unsigned int init_particles_count) {
+void openmp_begin(const Particle* init_particles, const unsigned int init_particles_count,
+    const unsigned int out_image_width, const unsigned int out_image_height) {
 
 }
 void openmp_stage1() {

@@ -2,12 +2,6 @@
 #define __config_h__
 
 /**
- * Dimensions of the image/screen we are rendering to
- */
-#define OUT_IMAGE_WIDTH 512
-#define OUT_IMAGE_HEIGHT 512
-
-/**
  * The number of values a pixel can take
  * This has no reason to be changed
  * Any change would likely necessitate changes to the code
@@ -17,6 +11,14 @@
  * Number of runs to complete for benchmarking
  */
 #define BENCHMARK_RUNS 100
+
+/**
+ * Particle generation Config
+ */
+#define CIRCLE_OPACITY_AVERAGE 0.5f
+#define CIRCLE_OPACITY_STDDEV 2.0f 
+#define CIRCLE_RAD_AVERAGE 10.0f 
+#define CIRCLE_RAD_STDDEV 2.0f 
 
 /**
  * Bounds for particle generation

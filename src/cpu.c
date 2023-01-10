@@ -35,16 +35,17 @@ CImage cpu_output_image;
 ///
 /// Implementation
 ///
-void cpu_begin(const Particle* init_particles, const unsigned int init_particles_count) {
+void cpu_begin(const Particle* init_particles, const unsigned int init_particles_count,
+    const unsigned int out_image_width, const unsigned int out_image_height) {
     // Allocate a opy of the initial particles, to be used during computation
     cpu_particles_count = init_particles_count;
     cpu_particles = malloc(init_particles_count * sizeof(Particle));
     memcpy(cpu_particles, init_particles, init_particles_count * sizeof(Particle));
 
     // Allocate a histogram to track how many particles contribute to each pixel
-    cpu_pixel_contribs = (unsigned int *)malloc(OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * sizeof(unsigned int));
+    cpu_pixel_contribs = (unsigned int *)malloc(out_image_width * out_image_height * sizeof(unsigned int));
     // Allocate an index to track where data for each pixel's contributing colour starts/ends
-    cpu_pixel_index = (unsigned int*)malloc((OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT + 1) * sizeof(unsigned int));
+    cpu_pixel_index = (unsigned int*)malloc((out_image_width * out_image_height + 1) * sizeof(unsigned int));
     // Init a buffer to store colours contributing to each pixel into (allocated in stage 2)
     cpu_pixel_contrib_colours = 0;
     // Init a buffer to store depth of colours contributing to each pixel into (allocated in stage 2)
@@ -52,17 +53,15 @@ void cpu_begin(const Particle* init_particles, const unsigned int init_particles
     // This tracks the number of contributes the two above buffers are allocated for, init 0
     cpu_pixel_contrib_count = 0;
 
-
-
     // Allocate output image
-    cpu_output_image.width = OUT_IMAGE_WIDTH;
-    cpu_output_image.height = OUT_IMAGE_HEIGHT;
-    cpu_output_image.channels = 3;
+    cpu_output_image.width = (int)out_image_width;
+    cpu_output_image.height = (int)out_image_height;
+    cpu_output_image.channels = 3;  // RGB
     cpu_output_image.data = (unsigned char *)malloc(cpu_output_image.width * cpu_output_image.height * cpu_output_image.channels * sizeof(unsigned char));
 }
 void cpu_stage1() {
     // Reset the pixel contributions histogram
-    memset(cpu_pixel_contribs, 0, OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * sizeof(unsigned int));
+    memset(cpu_pixel_contribs, 0, cpu_output_image.width * cpu_output_image.height * sizeof(unsigned int));
     // Update each particle & calculate how many particles contribute to each image
     for (unsigned int i = 0; i < cpu_particles_count; ++i) {
         // Compute bounding box [inclusive-inclusive]
@@ -73,8 +72,8 @@ void cpu_stage1() {
         // Clamp bounding box to image bounds
         x_min = x_min < 0 ? 0 : x_min;
         y_min = y_min < 0 ? 0 : y_min;
-        x_max = x_max >= OUT_IMAGE_WIDTH ? OUT_IMAGE_WIDTH - 1 : x_max;
-        y_max = y_max >= OUT_IMAGE_HEIGHT ? OUT_IMAGE_HEIGHT - 1 : y_max;
+        x_max = x_max >= cpu_output_image.width ? cpu_output_image.width - 1 : x_max;
+        y_max = y_max >= cpu_output_image.height ? cpu_output_image.height - 1 : y_max;
         // For each pixel in the bounding box, check that it falls within the radius
         for (int x = x_min; x < x_max; ++x) {
             for (int y = y_min; y < y_max; ++y) {
@@ -82,24 +81,24 @@ void cpu_stage1() {
                 const float y_ab = (float)y + 0.5f - cpu_particles[i].location[1];
                 const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
                 if (pixel_distance <= cpu_particles[i].radius) {
-                    const unsigned int pixel_offset = y * OUT_IMAGE_WIDTH + x;
+                    const unsigned int pixel_offset = y * cpu_output_image.width + x;
                     ++cpu_pixel_contribs[pixel_offset];
                 }
             }
         }
     }
 #ifdef VALIDATION
-    validate_pixel_contribs(cpu_particles, cpu_particles_count, cpu_pixel_contribs, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT);
+    validate_pixel_contribs(cpu_particles, cpu_particles_count, cpu_pixel_contribs, cpu_output_image.width, cpu_output_image.height);
 #endif
 }
 void cpu_stage2() {
     // Exclusive prefix sum across the histogram to create an index
     cpu_pixel_index[0] = 0;
-    for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
+    for (int i = 0; i < cpu_output_image.width * cpu_output_image.height; ++i) {
         cpu_pixel_index[i + 1] = cpu_pixel_index[i] + cpu_pixel_contribs[i];
     }
     // Recover the total from the index
-    const unsigned int TOTAL_CONTRIBS = cpu_pixel_index[OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT];
+    const unsigned int TOTAL_CONTRIBS = cpu_pixel_index[cpu_output_image.width * cpu_output_image.height];
     if (TOTAL_CONTRIBS > cpu_pixel_contrib_count) {
         // (Re)Allocate colour storage
         if (cpu_pixel_contrib_colours) free(cpu_pixel_contrib_colours);
@@ -110,7 +109,7 @@ void cpu_stage2() {
     }
 
     // Reset the pixel contributions histogram
-    memset(cpu_pixel_contribs, 0, OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * sizeof(unsigned int));
+    memset(cpu_pixel_contribs, 0, cpu_output_image.width * cpu_output_image.height * sizeof(unsigned int));
     // Store colours according to index
     // For each particle, store a copy of the colour/depth in cpu_pixel_contribs for each contributed pixel
     for (unsigned int i = 0; i < cpu_particles_count; ++i) {
@@ -122,8 +121,8 @@ void cpu_stage2() {
         // Clamp bounding box to image bounds
         x_min = x_min < 0 ? 0 : x_min;
         y_min = y_min < 0 ? 0 : y_min;
-        x_max = x_max >= OUT_IMAGE_WIDTH ? OUT_IMAGE_WIDTH - 1 : x_max;
-        y_max = y_max >= OUT_IMAGE_HEIGHT ? OUT_IMAGE_HEIGHT - 1 : y_max;
+        x_max = x_max >= cpu_output_image.width ? cpu_output_image.width - 1 : x_max;
+        y_max = y_max >= cpu_output_image.height ? cpu_output_image.height - 1 : y_max;
         // Store data for every pixel within the bounding box that falls within the radius
         for (int x = x_min; x < x_max; ++x) {
             for (int y = y_min; y < y_max; ++y) {
@@ -131,7 +130,7 @@ void cpu_stage2() {
                 const float y_ab = (float)y + 0.5f - cpu_particles[i].location[1];
                 const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
                 if (pixel_distance <= cpu_particles[i].radius) {
-                    const unsigned int pixel_offset = y * OUT_IMAGE_WIDTH + x;
+                    const unsigned int pixel_offset = y * cpu_output_image.width + x;
                     // Offset into cpu_pixel_contrib buffers is index + histogram
                     // Increment cpu_pixel_contribs, so next contributor stores to correct offset
                     const unsigned int storage_offset = cpu_pixel_index[pixel_offset] + (cpu_pixel_contribs[pixel_offset]++);
@@ -144,7 +143,7 @@ void cpu_stage2() {
     }
 
     // Pair sort the colours contributing to each pixel based on ascending depth
-    for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
+    for (int i = 0; i < cpu_output_image.width * cpu_output_image.height; ++i) {
         // Pair sort the colours which contribute to a single pigment
         cpu_sort_pairs(
             cpu_pixel_contrib_depth,
@@ -154,8 +153,8 @@ void cpu_stage2() {
         );
     }
 #ifdef VALIDATION
-    validate_pixel_index(cpu_pixel_contribs, cpu_pixel_index, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT);
-    validate_sorted_pairs(cpu_particles, cpu_particles_count,cpu_pixel_index, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT,
+    validate_pixel_index(cpu_pixel_contribs, cpu_pixel_index, cpu_output_image.width, cpu_output_image.height);
+    validate_sorted_pairs(cpu_particles, cpu_particles_count,cpu_pixel_index, cpu_output_image.width, cpu_output_image.height,
         cpu_pixel_contrib_colours, cpu_pixel_contrib_depth);
 #endif
 }
@@ -164,7 +163,7 @@ void cpu_stage3() {
     memset(cpu_output_image.data, 255, cpu_output_image.width * cpu_output_image.height * cpu_output_image.channels * sizeof(unsigned char));
 
     // Order dependent blending into output image
-    for (unsigned int i = 0; i < OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT; ++i) {
+    for (int i = 0; i < cpu_output_image.width * cpu_output_image.height; ++i) {
         for (unsigned int j = cpu_pixel_index[i]; j < cpu_pixel_index[i + 1]; ++j) {
             // Blend each of the red/green/blue colours according to the below blend formula
             // dest = src * opacity + dest * (1 - opacity);

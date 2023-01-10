@@ -8,9 +8,13 @@ typedef enum Mode Mode;
  */
 struct Config {
     /**
-     * Path to input file
+     * The number of circle particles to generate
      */
-    char *input_file;
+    unsigned int circle_count;
+    /**
+     * The output image width and height
+     */
+    unsigned int out_image_width, out_image_height;
     /**
      * Path to output image (must be .png)
      */
@@ -27,20 +31,8 @@ struct Config {
     unsigned char benchmark;
 }; typedef struct Config Config;
 /**
- * This structure represents the parsed input file
+ * Structure for holding calculated runtimes
  */
-struct InputFile {
-    /**
-     * The number of circle particles
-     */
-    unsigned int circle_count;
-
-    float circle_rad_average;
-    float circle_rad_standarddev;
-    float circle_opacity_average;
-    float circle_opacity_standarddev;
-};
-typedef struct InputFile InputFile;
 struct Runtimes
 {
     float init;
@@ -49,7 +41,7 @@ struct Runtimes
     float stage3;
     float cleanup;
     float total;
-};
+}; typedef struct Runtimes Runtimes;
 /**
  * Parse the runtime args into config
  * @param argc argc from main()

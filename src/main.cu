@@ -41,45 +41,24 @@ int main(int argc, char **argv)
     Config config;
     parse_args(argc, argv, &config);
 
-    // Load input config
-    InputFile user_config;
-    {
-        // @todo
-        //user_cimage.data = stbi_load(config.input_file, &user_cimage.width, &user_cimage.height, &user_cimage.channels, 0);
-        //if (!user_cimage.data) {
-        //    printf("Unable to load image '%s', please try a different file.\n", config.input_file);
-        //    return EXIT_FAILURE;
-        //}
-        //if (user_cimage.channels == 2) {
-        //    printf("2 channel images are not supported, please try a different file.\n");
-        //    return EXIT_FAILURE;
-        //}
-        // test cfg
-        user_config.circle_count = 100;
-        user_config.circle_opacity_average = 0.5;
-        user_config.circle_opacity_standarddev = 2.0f;
-        user_config.circle_rad_average = 10;
-        user_config.circle_rad_standarddev = 2.0f;
-    }
-
     // Generate Initial Particles from user_config
-    const unsigned int particles_count = user_config.circle_count;
+    const unsigned int particles_count = config.circle_count;
     Particle* particles = (Particle *)malloc(particles_count * sizeof(Particle));
     {
         // Random engine with a fixed seed and several distributions to be used
         std::mt19937 rng(12);
         std::uniform_real_distribution<float> normalised_float_dist(0, 1);
-        std::normal_distribution<float> circle_rad_dist(user_config.circle_rad_average, user_config.circle_rad_standarddev);
-        std::normal_distribution<float> circle_opacity_dist(user_config.circle_opacity_average, user_config.circle_opacity_standarddev);
+        std::normal_distribution<float> circle_rad_dist(CIRCLE_RAD_AVERAGE, CIRCLE_RAD_STDDEV);
+        std::normal_distribution<float> circle_opacity_dist(CIRCLE_OPACITY_AVERAGE, CIRCLE_OPACITY_STDDEV);
         std::uniform_int_distribution<int> color_palette_dist(0, sizeof(base_color_palette)/sizeof(unsigned char[3]) - 1);
         // Common
-        for (unsigned int i = 0; i < user_config.circle_count; ++i) {
+        for (unsigned int i = 0; i < config.circle_count; ++i) {
             const int palette_index = color_palette_dist(rng);
             particles[i].color[0] = base_color_palette[palette_index][0];
             particles[i].color[1] = base_color_palette[palette_index][1];
             particles[i].color[2] = base_color_palette[palette_index][2];
-            particles[i].location[0] = normalised_float_dist(rng) * OUT_IMAGE_WIDTH;
-            particles[i].location[1] = normalised_float_dist(rng) * OUT_IMAGE_HEIGHT;
+            particles[i].location[0] = normalised_float_dist(rng) * config.out_image_width;
+            particles[i].location[1] = normalised_float_dist(rng) * config.out_image_height;
             particles[i].location[2] = normalised_float_dist(rng);
             // Circle specific
             particles[i].radius = circle_rad_dist(rng);
@@ -121,15 +100,15 @@ int main(int argc, char **argv)
             if (TOTAL_RUNS > 1)
                 printf("\r%d/%d", runs + 1, TOTAL_RUNS);
             memset(&output_image, 0, sizeof(CImage));
-            output_image.data = (unsigned char*)malloc(OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * 3 * sizeof(unsigned char));
-            memset(output_image.data, 0, OUT_IMAGE_WIDTH * OUT_IMAGE_HEIGHT * 3 * sizeof(unsigned char));
+            output_image.data = (unsigned char*)malloc(config.out_image_width * config.out_image_height * 3 * sizeof(unsigned char));
+            memset(output_image.data, 0, config.out_image_width * config.out_image_height * 3 * sizeof(unsigned char));
             // Run Particles algorithm
             CUDA_CALL(cudaEventRecord(startT));
             CUDA_CALL(cudaEventSynchronize(startT));
             switch (config.mode) {
             case CPU:
                 {
-                    cpu_begin(particles, particles_count);
+                    cpu_begin(particles, particles_count, config.out_image_width, config.out_image_height);
                     CUDA_CALL(cudaEventRecord(initT));
                     CUDA_CALL(cudaEventSynchronize(initT));
                     cpu_stage1();
@@ -146,7 +125,7 @@ int main(int argc, char **argv)
                 break;
             case OPENMP:
                 {
-                    openmp_begin(particles, particles_count);
+                    openmp_begin(particles, particles_count, config.out_image_width, config.out_image_height);
                     CUDA_CALL(cudaEventRecord(initT));
                     CUDA_CALL(cudaEventSynchronize(initT));
                     openmp_stage1();
@@ -163,7 +142,7 @@ int main(int argc, char **argv)
                 break;
             case CUDA:
                 {
-                    cuda_begin(particles, particles_count);
+                    cuda_begin(particles, particles_count, config.out_image_width, config.out_image_height);
                     CUDA_CHECK();
                     CUDA_CALL(cudaEventRecord(initT));
                     CUDA_CALL(cudaEventSynchronize(initT));
@@ -288,7 +267,6 @@ int main(int argc, char **argv)
     // free(validation_image.data);  //@TODO
     free(particles);
     free(output_image.data);
-    free(config.input_file);
     if (config.output_file)
         free(config.output_file);
     return EXIT_SUCCESS;
@@ -296,8 +274,8 @@ int main(int argc, char **argv)
 void parse_args(int argc, char **argv, Config *config) {
     // Clear config struct
     memset(config, 0, sizeof(Config));
-    if (argc < 3 || argc > 5) {
-        fprintf(stderr, "Program expects 2-4 arguments, only %d provided.\n", argc-1);
+    if (argc < 4 || argc > 6) {
+        fprintf(stderr, "Program expects 3-5 arguments, only %d provided.\n", argc-1);
         print_help(argv[0]);
     }
     // Parse first arg as mode
@@ -322,17 +300,38 @@ void parse_args(int argc, char **argv, Config *config) {
             print_help(argv[0]);
         }
     }
-    // Parse second arg as input file
+    // Parse second arg as number of particles
     {
-        // Find length of string
-        const size_t input_name_len = strlen(argv[2]) + 1;  // Add 1 for null terminating character
-        // Allocate memory and copy
-        config->input_file = (char*)malloc(input_name_len);
-        memcpy(config->input_file, argv[2], input_name_len);
+        int particle_arg = atoi(argv[2]);
+        if (particle_arg > 0) {
+            config->circle_count = (unsigned int )particle_arg;
+        } else {
+            fprintf(stderr, "Unexpected uint provided as second argument: '%s' .\n", argv[2]);
+            fprintf(stderr, "Second argument expects the number of particles to generate.\n");
+            print_help(argv[0]);
+        }
+    }
+    // Parse third arg as output image dimensions
+    {
+        // Attempt to parse as two uints, delimited by , or x or X
+        const int in_width = atoi(strtok(argv[3], ",xX"));
+        const int in_height = atoi(strtok(NULL, ",xX"));
+        const char *in_end = strtok(NULL, ",x");
+        if (in_width > 0 && in_height > 0 && in_end == NULL) {  // width + height provided
+            config->out_image_width = (unsigned int)in_width;
+            config->out_image_height = (unsigned int)in_height;
+        } else if (in_width > 0 && in_height == 0 && in_end == NULL) {  // Only width provided
+            config->out_image_width = (unsigned int)in_width;
+            config->out_image_height = (unsigned int)in_width;
+        } else {
+            fprintf(stderr, "Unable to parse input provided as third argument: '%s' .\n", argv[2]);
+            fprintf(stderr, "Third argument expects the image dimensions (e.g. 512 or 512x1024).\n");
+            print_help(argv[0]);
+        }
     }
     
     // Iterate over remaining args    
-    int i = 3;
+    int i = 4;
     char * t_arg = 0;
     for (; i < argc; i++) {
         // Make a lowercase copy of the argument
@@ -363,12 +362,14 @@ void parse_args(int argc, char **argv, Config *config) {
         free(t_arg);
 }
 void print_help(const char *program_name) {
-    fprintf(stderr, "%s <mode> <input file> (<output image>) (--bench)\n", program_name);
+    fprintf(stderr, "%s <mode> <particle count> <output image dimensions> (<output image>) (--bench)\n", program_name);
     
     const char *line_fmt = "%-18s %s\n";
     fprintf(stderr, "Required Arguments:\n");
     fprintf(stderr, line_fmt, "<mode>", "The algorithm to use: CPU, OPENMP, CUDA");
     fprintf(stderr, line_fmt, "<input image>", "Input image, .png, .jpg");
+    fprintf(stderr, line_fmt, "<particle count>", "The number of particles to generate");
+    fprintf(stderr, line_fmt, "<output image dimensions>", "The dimensions of the image to output e.g. 512, 512x1024");
     fprintf(stderr, "Optional Arguments:\n");
     fprintf(stderr, line_fmt, "<output image>", "Output image, requires .png filetype");
     fprintf(stderr, line_fmt, "-b, --bench", "Enable benchmark mode");
@@ -381,7 +382,7 @@ const char *mode_to_string(Mode m) {
     case CPU:
       return "CPU";
     case OPENMP:
-     return "OpenMP";
+      return "OpenMP";
     case CUDA:
       return "CUDA";
     }
