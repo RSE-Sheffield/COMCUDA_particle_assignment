@@ -78,7 +78,28 @@ int main(int argc, char **argv)
     // Create result for validation
     CImage validation_image;
     {
-        // @TODO
+        // Init metadata
+        validation_image.width = config.out_image_width;
+        validation_image.height = config.out_image_height;
+        validation_image.channels = 3;
+        // Allocate memory
+        validation_image.data = (unsigned char*)malloc(validation_image.width * validation_image.height * validation_image.channels * sizeof(unsigned char));
+        // Allocate algorithm storage
+        unsigned int *pixel_contribs = (unsigned int*)malloc(validation_image.width * validation_image.height * sizeof(unsigned int));;
+        unsigned int *pixel_index = (unsigned int*)malloc((validation_image.width * validation_image.height + 1) * sizeof(unsigned int));
+        // Run algorithm
+        skip_pixel_contribs(particles, particles_count, pixel_contribs, validation_image.width, validation_image.height);
+        skip_pixel_index(pixel_contribs, pixel_index, validation_image.width, validation_image.height);
+        const unsigned int TOTAL_CONTRIBS = pixel_index[validation_image.width * validation_image.height];
+        unsigned char *pixel_contrib_colours = (unsigned char*)malloc(TOTAL_CONTRIBS * 4 * sizeof(unsigned char));
+        float *pixel_contrib_depth = (float*)malloc(TOTAL_CONTRIBS * sizeof(float));
+        skip_sorted_pairs(particles, particles_count, pixel_index, validation_image.width, validation_image.height, pixel_contrib_colours, pixel_contrib_depth);
+        skip_blend(pixel_index, pixel_contrib_colours, &validation_image);
+        // Free algorithm storage
+        free(pixel_contrib_depth);
+        free(pixel_contrib_colours);
+        free(pixel_index);
+        free(pixel_contribs);
     }
        
     CImage output_image;
@@ -202,36 +223,42 @@ int main(int argc, char **argv)
     }
 
     // Validate and report    
-    //{
-    //    printf("\rValidation Status: \n");
-    //    printf("\tImage width: %s" CONSOLE_RESET "\n", validation_image.width == output_image.width ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
-    //    printf("\tImage height: %s" CONSOLE_RESET "\n", validation_image.height == output_image.height ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
-    //    int v_size = validation_image.width * validation_image.height;
-    //    int o_size = output_image.width * output_image.height;
-    //    int s_size = v_size < o_size ? v_size : o_size;
-    //    int bad_pixels = 0;
-    //    int close_pixels = 0;
-    //    if (output_image.data && s_size) {
-    //        for (int i = 0; i < s_size; ++i) {
-    //            if (output_image.data[i] != validation_image.data[i]) {
-    //                // Give a +-1 threshold for error (incase fast-math triggers a small difference in places)
-    //                if (output_image.data[i]+1 == validation_image.data[i] || output_image.data[i]-1 == validation_image.data[i]) {
-    //                    close_pixels++;
-    //                } else {
-    //                    bad_pixels++;
-    //                }
-    //            }
-    //        }
-    //        printf("\tImage pixels: ");
-    //        if (bad_pixels) {
-    //            printf(CONSOLE_RED "Fail" CONSOLE_RESET " (%d/%u wrong)\n", bad_pixels, o_size);
-    //        } else {
-    //            printf(CONSOLE_GREEN "Pass" CONSOLE_RESET "\n");
-    //        }
-    //    } else {
-    //        printf("\tImage pixels: " CONSOLE_RED "Fail" CONSOLE_RESET "\n");
-    //    }
-    //}
+    {
+        printf("\rValidation Status: \n");
+        printf("\tImage width: %s" CONSOLE_RESET "\n", validation_image.width == output_image.width ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
+        printf("\tImage height: %s" CONSOLE_RESET "\n", validation_image.height == output_image.height ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
+        printf("\tImage channels: %s" CONSOLE_RESET "\n", validation_image.channels == output_image.channels ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
+        const int v_size = validation_image.width * validation_image.height;
+        const int o_size = output_image.width * output_image.height;
+        const int s_size = v_size < o_size ? v_size : o_size;
+        const int max_channels = validation_image.channels > output_image.channels ? output_image.channels : validation_image.channels;
+        int bad_pixels = 0;
+        int close_pixels = 0;
+        if (output_image.data && s_size) {
+            for (int i = 0; i < s_size; ++i) {
+                for (int ch = 0; ch < max_channels; ++ch) {
+                    if (output_image.data[i * max_channels + ch] != validation_image.data[i * max_channels + ch]) {
+                        // Give a +-1 threshold for error (incase fast-math triggers a small difference in places)
+                        if (output_image.data[i * max_channels + ch]+1 == validation_image.data[i * max_channels + ch] ||
+                            output_image.data[i * max_channels + ch]-1 == validation_image.data[i * max_channels + ch]) {
+                            close_pixels++;
+                        } else {
+                            bad_pixels++;
+                        }
+                        break;
+                    }
+                }
+            }
+            printf("\tImage pixels: ");
+            if (bad_pixels) {
+                printf(CONSOLE_RED "Fail" CONSOLE_RESET " (%d/%u pixels contain the wrong colour)\n", bad_pixels, o_size);
+            } else {
+                printf(CONSOLE_GREEN "Pass" CONSOLE_RESET "\n");
+            }
+        } else {
+            printf("\tImage pixels: " CONSOLE_RED "Fail" CONSOLE_RESET "\n");
+        }
+    }
 
     // Export output image
     if (config.output_file) {
@@ -264,7 +291,7 @@ int main(int argc, char **argv)
 
     // Cleanup
     cudaDeviceReset();
-    // free(validation_image.data);  //@TODO
+    free(validation_image.data);
     free(particles);
     free(output_image.data);
     if (config.output_file)

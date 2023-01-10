@@ -238,18 +238,25 @@ void validate_blend(const unsigned int *pixel_index, const unsigned char *pixel_
     unsigned int bad_pixels = 0;
     unsigned int close_pixels = 0;
     for (int i = 0; i < output_image.width * output_image.height; ++i) {
-        if (output_image.data[i] != test_output_image->data[i]) {
-            // Give a +-1 threshold for error (incase fast-math triggers a small difference in places)
-            if (output_image.data[i]+1 == test_output_image->data[i] || output_image.data[i]-1 == test_output_image->data[i]) {
-                close_pixels++;
-            } else {
-                bad_pixels++;
+        for (int ch = 0; ch < output_image.channels; ++ch) {
+            if (output_image.data[i * output_image.channels + ch] != test_output_image->data[i * output_image.channels + ch]) {
+                // Give a +-1 threshold for error (incase fast-math triggers a small difference in places)
+                if (output_image.data[i * output_image.channels + ch]+1 == test_output_image->data[i * output_image.channels + ch] ||
+                    output_image.data[i * output_image.channels + ch]-1 == test_output_image->data[i * output_image.channels + ch]) {
+                    close_pixels++;
+                } else {
+                    bad_pixels++;
+                }
+                break;
             }
         }
     }
+    if (output_image.channels != 3) {
+        fprintf(stderr, "validate_blend() " CONSOLE_RED "Output image channels should equal 3, found %d instead." CONSOLE_RESET "\n", output_image.channels);
+    }
     if (bad_pixels) {
-        fprintf(stderr, "validate_blend() " CONSOLE_RED "found %d/%u incorrect pixels." CONSOLE_RESET "\n", bad_pixels, output_image.width * output_image.height);
-    } else {
+        fprintf(stderr, "validate_blend() " CONSOLE_RED "%d/%u pixels contain the wrong colour." CONSOLE_RESET "\n", bad_pixels, output_image.width * output_image.height);
+    } else if(output_image.channels == 3){
         fprintf(stderr, "validate_blend() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", output_image.width * output_image.height);
     }
     // Release internal output image
