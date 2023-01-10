@@ -154,7 +154,7 @@ void cpu_stage2() {
     }
 #ifdef VALIDATION
     validate_pixel_index(cpu_pixel_contribs, cpu_pixel_index, cpu_output_image.width, cpu_output_image.height);
-    validate_sorted_pairs(cpu_particles, cpu_particles_count,cpu_pixel_index, cpu_output_image.width, cpu_output_image.height,
+    validate_sorted_pairs(cpu_particles, cpu_particles_count, cpu_pixel_index, cpu_output_image.width, cpu_output_image.height,
         cpu_pixel_contrib_colours, cpu_pixel_contrib_depth);
 #endif
 }
