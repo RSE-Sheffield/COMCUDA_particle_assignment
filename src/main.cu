@@ -369,7 +369,7 @@ void print_help(const char *program_name) {
     fprintf(stderr, line_fmt, "<mode>", "The algorithm to use: CPU, OPENMP, CUDA");
     fprintf(stderr, line_fmt, "<input image>", "Input image, .png, .jpg");
     fprintf(stderr, line_fmt, "<particle count>", "The number of particles to generate");
-    fprintf(stderr, line_fmt, "<output image dimensions>", "The dimensions of the image to output e.g. 512, 512x1024");
+    fprintf(stderr, line_fmt, "<output image dimensions>", "The dimensions of the image to output e.g. 512 or 512x1024");
     fprintf(stderr, "Optional Arguments:\n");
     fprintf(stderr, line_fmt, "<output image>", "Output image, requires .png filetype");
     fprintf(stderr, line_fmt, "-b, --bench", "Enable benchmark mode");

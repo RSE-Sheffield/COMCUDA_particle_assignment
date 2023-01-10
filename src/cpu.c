@@ -75,8 +75,8 @@ void cpu_stage1() {
         x_max = x_max >= cpu_output_image.width ? cpu_output_image.width - 1 : x_max;
         y_max = y_max >= cpu_output_image.height ? cpu_output_image.height - 1 : y_max;
         // For each pixel in the bounding box, check that it falls within the radius
-        for (int x = x_min; x < x_max; ++x) {
-            for (int y = y_min; y < y_max; ++y) {
+        for (int x = x_min; x <= x_max; ++x) {
+            for (int y = y_min; y <= y_max; ++y) {
                 const float x_ab = (float)x + 0.5f - cpu_particles[i].location[0];
                 const float y_ab = (float)y + 0.5f - cpu_particles[i].location[1];
                 const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
@@ -124,8 +124,8 @@ void cpu_stage2() {
         x_max = x_max >= cpu_output_image.width ? cpu_output_image.width - 1 : x_max;
         y_max = y_max >= cpu_output_image.height ? cpu_output_image.height - 1 : y_max;
         // Store data for every pixel within the bounding box that falls within the radius
-        for (int x = x_min; x < x_max; ++x) {
-            for (int y = y_min; y < y_max; ++y) {
+        for (int x = x_min; x <= x_max; ++x) {
+            for (int y = y_min; y <= y_max; ++y) {
                 const float x_ab = (float)x + 0.5f - cpu_particles[i].location[0];
                 const float y_ab = (float)y + 0.5f - cpu_particles[i].location[1];
                 const float pixel_distance = sqrtf(x_ab * x_ab + y_ab * y_ab);
