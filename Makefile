@@ -25,14 +25,32 @@ OBJS=$(addsuffix .o,$(SRCS))
 CC=gcc
 CCFLAGS= -fopenmp -I. -Isrc -Wall
 CCFLAGS_RELEASE= -O3 -DNDEBUG
-# -O1 is passed to gcc for debug builds to allow linking via nvcc with inline methods in a C host compiler. This pervents debugging of the inline methods unfortunatley
+# -O1 is passed to gcc for debug builds to allow linking via nvcc with inline methods in a C host compiler. This prevents debugging of the inline methods unfortunately
 CCFLAGS_DEBUG= -g -O1 -DDEBUG
 
 # Select the device NVCC compiler and provide compiler options, for all builds, release builds and debug builds.
-# Use the CUDA_ARCH variable to control the compute capabiltiy to build for.
-CUDA_ARCH=61
+# Use the CUDA_ARCH variable to control the compute capability to build for.
+CUDA_ARCH:=37 60
+
+# Verify that atleast one SM value has been specified.
+ifeq ($(CUDA_ARCH),)
+  $(error "Error - no SM architectures have been specified. Aborting.")
+endif
+
+ifeq ($(GENCODE_FLAGS),)
+  # Generate SASS code for each SM architecture listed in $(CUDA_ARCH)
+  $(foreach sm,$(CUDA_ARCH),$(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
+
+  # Generate PTX code from the highest SM architecture in $(CUDA_ARCH) to guarantee forward-compatibility
+  HIGHEST_SM := $(lastword $(sort $(CUDA_ARCH)))
+  ifneq ($(HIGHEST_SM),)
+    GENCODE_FLAGS += -gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
+  endif
+endif
+
 NVCC=nvcc
-NVCCFLAGS= -gencode arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH) -gencode arch=compute_$(CUDA_ARCH),code=compute_$(CUDA_ARCH) -I. -Isrc -Wno-deprecated-gpu-targets
+NVCCFLAGS= $(GENCODE_FLAGS) -I. -Isrc -Wno-deprecated-gpu-targets
+
 NVCCFLAGS_RELEASE= -lineinfo -O3 -DNDEBUG
 NVCCFLAGS_DEBUG= -g -G -DDEBUG
 
