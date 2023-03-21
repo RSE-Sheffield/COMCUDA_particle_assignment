@@ -395,7 +395,6 @@ void print_help(const char *program_name) {
     const char *line_fmt = "%-18s %s\n";
     fprintf(stderr, "Required Arguments:\n");
     fprintf(stderr, line_fmt, "<mode>", "The algorithm to use: CPU, OPENMP, CUDA");
-    fprintf(stderr, line_fmt, "<input image>", "Input image, .png, .jpg");
     fprintf(stderr, line_fmt, "<particle count>", "The number of particles to generate");
     fprintf(stderr, line_fmt, "<output image dimensions>", "The dimensions of the image to output e.g. 512 or 512x1024");
     fprintf(stderr, "Optional Arguments:\n");
