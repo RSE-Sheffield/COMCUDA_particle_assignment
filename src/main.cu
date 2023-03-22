@@ -6,14 +6,19 @@
 #ifdef _MSC_VER
 #include <windows.h>
 #include <WinCon.h>
+#pragma warning(disable: 4996)
+#include <io.h>
+#else
+#include <unistd.h>
 #endif
 
 #include <random>
 
-#define CONSOLE_RED "\x1b[91m"
-#define CONSOLE_GREEN "\x1b[92m"
-#define CONSOLE_YELLOW "\x1b[93m"
-#define CONSOLE_RESET "\x1b[39m"
+// Presumes all coloured IO in this file is to stdout
+#define CONSOLE_RED isatty(fileno(stdout))?"\x1b[91m":""
+#define CONSOLE_GREEN isatty(fileno(stdout))?"\x1b[92m":""
+#define CONSOLE_YELLOW isatty(fileno(stdout))?"\x1b[93m":""
+#define CONSOLE_RESET isatty(fileno(stdout))?"\x1b[39m":""
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "external/stb_image_write.h"
@@ -225,9 +230,9 @@ int main(int argc, char **argv)
     // Validate and report    
     {
         printf("\rValidation Status: \n");
-        printf("\tImage width: %s" CONSOLE_RESET "\n", validation_image.width == output_image.width ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
-        printf("\tImage height: %s" CONSOLE_RESET "\n", validation_image.height == output_image.height ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
-        printf("\tImage channels: %s" CONSOLE_RESET "\n", validation_image.channels == output_image.channels ? CONSOLE_GREEN "Pass" : CONSOLE_RED "Fail");
+        printf("\tImage width: %s%s%s\n", validation_image.width == output_image.width ? CONSOLE_GREEN : CONSOLE_RED, validation_image.width == output_image.width ? "Pass" :  "Fail", CONSOLE_RESET);
+        printf("\tImage height: %s%s%s\n", validation_image.height == output_image.height ? CONSOLE_GREEN : CONSOLE_RED, validation_image.height == output_image.height ? "Pass" : "Fail", CONSOLE_RESET);
+        printf("\tImage channels: %s%s%s\n", validation_image.channels == output_image.channels ? CONSOLE_GREEN : CONSOLE_RED, validation_image.channels == output_image.channels ? "Pass" : "Fail", CONSOLE_RESET);
         const int v_size = validation_image.width * validation_image.height;
         const int o_size = output_image.width * output_image.height;
         const int s_size = v_size < o_size ? v_size : o_size;
@@ -251,19 +256,19 @@ int main(int argc, char **argv)
             }
             printf("\tImage pixels: ");
             if (bad_pixels) {
-                printf(CONSOLE_RED "Fail" CONSOLE_RESET " (%d/%u pixels contain the wrong colour)\n", bad_pixels, o_size);
+                printf("%sFail%s (%d/%u pixels contain the wrong colour)\n", CONSOLE_RED, CONSOLE_RESET, bad_pixels, o_size);
             } else {
-                printf(CONSOLE_GREEN "Pass" CONSOLE_RESET "\n");
+                printf("%sPass%s\n", CONSOLE_GREEN, CONSOLE_RESET);
             }
         } else {
-            printf("\tImage pixels: " CONSOLE_RED "Fail" CONSOLE_RESET "\n");
+            printf("\tImage pixels: %sFail%s\n", CONSOLE_RED, CONSOLE_RESET);
         }
     }
 
     // Export output image
     if (config.output_file) {
         if (!stbi_write_png(config.output_file, output_image.width, output_image.height, output_image.channels, output_image.data, output_image.width * output_image.channels)) {
-            printf(CONSOLE_YELLOW "Unable to save image output to %s.\n" CONSOLE_RESET, config.output_file);
+            printf( "%sUnable to save image output to %s.%s\n", CONSOLE_YELLOW, config.output_file, CONSOLE_RESET);
             // return EXIT_FAILURE;
         }
     }
@@ -280,14 +285,14 @@ int main(int argc, char **argv)
         printf("Using GPU: %s\n", props.name);
     }
 #ifdef _DEBUG
-    printf(CONSOLE_YELLOW "Code built as DEBUG, timing results are invalid!\n" CONSOLE_RESET);
+    printf("%sCode built as DEBUG, timing results are invalid!\n%s", CONSOLE_YELLOW, CONSOLE_RESET);
 #endif
     printf("Init: %.3fms\n", timing_log.init);
-    printf("Stage 1: %.3fms%s\n", timing_log.stage1, getStage1SkipUsed() ? CONSOLE_YELLOW " (helper method used, time invalid)" CONSOLE_RESET : "");
-    printf("Stage 2: %.3fms%s\n", timing_log.stage2, getStage2SkipUsed() ? CONSOLE_YELLOW " (helper method used, time invalid)" CONSOLE_RESET : "");
-    printf("Stage 3: %.3fms%s\n", timing_log.stage3, getStage3SkipUsed() ? CONSOLE_YELLOW " (helper method used, time invalid)" CONSOLE_RESET : "");
+    printf("Stage 1: %.3fms%s%s%s\n", timing_log.stage1, getStage1SkipUsed() ? CONSOLE_YELLOW : "", getStage1SkipUsed() ? " (helper method used, time invalid)" : "", CONSOLE_RESET);
+    printf("Stage 2: %.3fms%s%s%s\n", timing_log.stage2, getStage2SkipUsed() ? CONSOLE_YELLOW : "", getStage2SkipUsed() ? " (helper method used, time invalid)" : "", CONSOLE_RESET);
+    printf("Stage 3: %.3fms%s%s%s\n", timing_log.stage3, getStage3SkipUsed() ? CONSOLE_YELLOW : "", getStage3SkipUsed() ? " (helper method used, time invalid)" : "", CONSOLE_RESET);
     printf("Free: %.3fms\n", timing_log.cleanup);
-    printf("Total: %.3fms%s\n", timing_log.total, getSkipUsed() ? CONSOLE_YELLOW " (helper method used, time invalid)" CONSOLE_RESET : "");
+    printf("Total: %.3fms%s%s%s\n", timing_log.total, getSkipUsed() ? CONSOLE_YELLOW : "", getSkipUsed() ? " (helper method used, time invalid)" : "", CONSOLE_RESET);
 
     // Cleanup
     cudaDeviceReset();

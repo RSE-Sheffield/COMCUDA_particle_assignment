@@ -6,13 +6,20 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
+#ifdef _MSC_VER
+#pragma warning(disable: 4996)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "config.h"
 
-#define CONSOLE_RED "\x1b[91m"
-#define CONSOLE_GREEN "\x1b[92m"
-#define CONSOLE_YELLOW "\x1b[93m"
-#define CONSOLE_RESET "\x1b[39m"
+// Presumes all coloured IO in this file is to stderr
+#define CONSOLE_RED isatty(fileno(stderr))?"\x1b[91m":""
+#define CONSOLE_GREEN isatty(fileno(stderr))?"\x1b[92m":""
+#define CONSOLE_YELLOW isatty(fileno(stderr))?"\x1b[93m":""
+#define CONSOLE_RESET isatty(fileno(stderr))?"\x1b[39m":""
 
 ///
 /// Utility Methods
@@ -45,9 +52,9 @@ void validate_pixel_contribs(
         }
     }
     if (bad_contribs) {
-        fprintf(stderr, "validate_pixel_contribs() " CONSOLE_RED "found %d/%u pixels contain invalid values." CONSOLE_RESET "\n", bad_contribs, out_image_width * out_image_height);
+        fprintf(stderr, "validate_pixel_contribs() %sfound %d/%u pixels contain invalid values.%s\n", CONSOLE_RED, bad_contribs, out_image_width * out_image_height, CONSOLE_RESET);
     } else {
-        fprintf(stderr, "validate_pixel_contribs() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
+        fprintf(stderr, "validate_pixel_contribs() %sfound no errors! (%u pixels were correct)%s\n", CONSOLE_GREEN, out_image_width * out_image_height, CONSOLE_RESET);
     }
     // Release internal pixel_contribs
     free(pixel_contribs);
@@ -99,9 +106,9 @@ void validate_pixel_index(const unsigned int *pixel_contribs, const unsigned int
         }
     }
     if (bad_indices) {
-        fprintf(stderr, "validate_pixel_index() " CONSOLE_RED "found %d/%u pixels contain invalid indices." CONSOLE_RESET "\n", bad_indices, out_image_width * out_image_height);
+        fprintf(stderr, "validate_pixel_index() %sfound %d/%u pixels contain invalid indices.%s\n", CONSOLE_RED, bad_indices, out_image_width * out_image_height, CONSOLE_RESET);
     } else {
-        fprintf(stderr, "validate_pixel_index() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
+        fprintf(stderr, "validate_pixel_index() %sfound no errors! (%u pixels were correct)%s\n", CONSOLE_GREEN, out_image_width * out_image_height, CONSOLE_RESET);
     }
     // Release internal pixel_index
     free(pixel_index);    
@@ -153,18 +160,18 @@ void validate_sorted_pairs(
         }
     }
     if (bad_colours) {
-        fprintf(stderr, "validate_sorted_pairs() " CONSOLE_RED "found %d/%u pixels have wrong/unsorted colours." CONSOLE_RESET "\n", bad_colours, out_image_width * out_image_height);
+        fprintf(stderr, "validate_sorted_pairs() %sfound %d/%u pixels have wrong/unsorted colours.%s\n", CONSOLE_RED, bad_colours, out_image_width * out_image_height, CONSOLE_RESET);
     } else {
-        fprintf(stderr, "validate_sorted_pairs() " CONSOLE_GREEN "found no colour errors! (%u pixels colours were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
+        fprintf(stderr, "validate_sorted_pairs() %sfound no colour errors! (%u pixels colours were correct)%s\n", CONSOLE_GREEN, out_image_width * out_image_height, CONSOLE_RESET);
     }
     if (test_pixel_contrib_depth) {
         if (bad_depth) {
-            fprintf(stderr, "validate_sorted_pairs() " CONSOLE_RED "found %d/%u pixels have wrong/unsorted depths." CONSOLE_RESET "\n", bad_depth, out_image_width * out_image_height);
+            fprintf(stderr, "validate_sorted_pairs() %sfound %d/%u pixels have wrong/unsorted depths.%s\n", CONSOLE_RED, bad_depth, out_image_width * out_image_height, CONSOLE_RESET);
             if (!bad_colours) {
-                fprintf(stderr, CONSOLE_YELLOW "Colours were correct, so incorrect depth is not a problem." CONSOLE_RESET "\n");
+                fprintf(stderr, "%sColours were correct, so incorrect depth is not a problem.%s\n", CONSOLE_YELLOW, CONSOLE_RESET);
             }
         } else {
-            fprintf(stderr, "validate_sorted_pairs() " CONSOLE_GREEN "found no depth errors! (%u pixels depths were correct)" CONSOLE_RESET "\n", out_image_width * out_image_height);
+            fprintf(stderr, "validate_sorted_pairs() %sfound no depth errors! (%u pixels depths were correct)%s\n", CONSOLE_GREEN, out_image_width * out_image_height, CONSOLE_RESET);
         }
     }
     // Release internal pixel contrib buffers
@@ -252,12 +259,12 @@ void validate_blend(const unsigned int *pixel_index, const unsigned char *pixel_
         }
     }
     if (output_image.channels != 3) {
-        fprintf(stderr, "validate_blend() " CONSOLE_RED "Output image channels should equal 3, found %d instead." CONSOLE_RESET "\n", output_image.channels);
+        fprintf(stderr, "validate_blend() %sOutput image channels should equal 3, found %d instead.%s\n", CONSOLE_RED, output_image.channels, CONSOLE_RESET);
     }
     if (bad_pixels) {
-        fprintf(stderr, "validate_blend() " CONSOLE_RED "%d/%u pixels contain the wrong colour." CONSOLE_RESET "\n", bad_pixels, output_image.width * output_image.height);
+        fprintf(stderr, "validate_blend() %s%d/%u pixels contain the wrong colour.%s\n", CONSOLE_RED, bad_pixels, output_image.width * output_image.height, CONSOLE_RESET);
     } else if(output_image.channels == 3){
-        fprintf(stderr, "validate_blend() " CONSOLE_GREEN "found no errors! (%u pixels were correct)" CONSOLE_RESET "\n", output_image.width * output_image.height);
+        fprintf(stderr, "validate_blend() %sfound no errors! (%u pixels were correct)%s\n", CONSOLE_GREEN, output_image.width * output_image.height, CONSOLE_RESET);
     }
     // Release internal output image
     free(output_image.data);
