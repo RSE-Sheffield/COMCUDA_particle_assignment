@@ -1,3 +1,4 @@
+;
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -13,6 +14,10 @@
 #endif
 
 #include <random>
+#include <set>
+#include <cmath>
+#include <algorithm>
+#include <cfloat>
 
 // Presumes all coloured IO in this file is to stdout
 #define CONSOLE_RED isatty(fileno(stdout))?"\x1b[91m":""
@@ -56,6 +61,12 @@ int main(int argc, char **argv)
         std::normal_distribution<float> circle_rad_dist(CIRCLE_RAD_AVERAGE, CIRCLE_RAD_STDDEV);
         std::normal_distribution<float> circle_opacity_dist(CIRCLE_OPACITY_AVERAGE, CIRCLE_OPACITY_STDDEV);
         std::uniform_int_distribution<int> color_palette_dist(0, sizeof(base_color_palette)/sizeof(unsigned char[3]) - 1);
+        std::vector<float> depths(config.circle_count);
+        depths[0]=0;
+        for (unsigned int i = 1; i < config.circle_count; ++i) {
+            depths[i] = nextafterf(depths[i-1], FLT_MAX);
+        }
+        shuffle(depths.begin(), depths.end(), rng);
         // Common
         for (unsigned int i = 0; i < config.circle_count; ++i) {
             const int palette_index = color_palette_dist(rng);
@@ -64,7 +75,7 @@ int main(int argc, char **argv)
             particles[i].color[2] = base_color_palette[palette_index][2];
             particles[i].location[0] = normalised_float_dist(rng) * config.out_image_width;
             particles[i].location[1] = normalised_float_dist(rng) * config.out_image_height;
-            particles[i].location[2] = normalised_float_dist(rng);
+            particles[i].location[2] = depths[i];
             // Circle specific
             particles[i].radius = circle_rad_dist(rng);
             float t_opacity = circle_opacity_dist(rng);
