@@ -49,7 +49,7 @@ ifeq ($(GENCODE_FLAGS),)
 endif
 
 NVCC=nvcc
-NVCCFLAGS= $(GENCODE_FLAGS) -I. -Isrc -Wno-deprecated-gpu-targets
+NVCCFLAGS= $(GENCODE_FLAGS) -I. -Isrc -Wno-deprecated-gpu-targets --fmad=false
 
 NVCCFLAGS_RELEASE= -lineinfo -O3 -DNDEBUG
 NVCCFLAGS_DEBUG= -g -G -DDEBUG
