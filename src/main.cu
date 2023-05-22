@@ -1,7 +1,7 @@
 ;
-#include <stdlib.h>
-#include <ctype.h>
-#include <string.h>
+#include <cstdlib>
+#include <cctype>
+#include <cstring>
 #include <cuda_runtime.h>
 
 #ifdef _MSC_VER
@@ -53,8 +53,21 @@ int main(int argc, char **argv)
 
     // Generate Initial Particles from user_config
     const unsigned int particles_count = config.circle_count;
-    Particle* particles = (Particle *)malloc(particles_count * sizeof(Particle));
-    {
+    const size_t particles_size = particles_count * sizeof(Particle);
+    Particle* particles = (Particle *)malloc(particles_size);
+    // Attempt to load particle data from cache, save init time
+    FILE *particle_cache = fopen("particle_cache.bin", "wb+");
+    fseek(particle_cache, 0L, SEEK_END);
+    const size_t cache_size = ftell(particle_cache);
+    fseek(particle_cache, 0L, SEEK_SET);
+    if (cache_size >= particles_size) {
+        // If cache is greater than or equal to required size, load from cache
+        const size_t read_sz = fread(particles, particles_size, 1, particle_cache);
+        if (read_sz != 1) {
+            fprintf(stderr, "Loading particle data from cache failed, please report this!\n");
+            return EXIT_FAILURE;
+        }
+    } else {
         // Random engine with a fixed seed and several distributions to be used
         std::mt19937 rng(12);
         std::uniform_real_distribution<float> normalised_float_dist(0, 1);
@@ -89,7 +102,14 @@ int main(int argc, char **argv)
             particles[i].radius = particles[i].radius < MIN_RADIUS ? MIN_RADIUS : particles[i].radius;
             particles[i].radius = particles[i].radius > MAX_RADIUS ? MAX_RADIUS : particles[i].radius;
         }
+        // Store to cache
+        const size_t write_sz = fwrite(particles, particles_size,1, particle_cache);
+        if (write_sz != 1) {
+            fprintf(stderr, "Writing particle data to cache failed, please report this!\n");
+        }
+
     }
+    fclose(particle_cache);
 
     // Create result for validation
     CImage validation_image;
